@@ -48,3 +48,7 @@ Thumbs.db
 *.mov
 *.wmv
 
+env/
+dnp3/
+pydnp3/
+dnp3-python/
