@@ -32,7 +32,7 @@ COPY requirements.txt .
 # install python libraries
 RUN pip3 install -r requirements.txt
 RUN pip3 install dnp3-python
-
+# dnp3-python==0.2.3b2
 # Copy code
 COPY outstation.py ./
 COPY run.sh  ./
