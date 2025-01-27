@@ -3,7 +3,6 @@ FROM python:3.10-alpine
 # Install system dependencies
 RUN set -x && \
     apk add --no-cache \
-        build-essential \
         build-base \
         git \
         boost-dev \ 
