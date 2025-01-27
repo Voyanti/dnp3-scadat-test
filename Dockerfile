@@ -11,14 +11,14 @@ RUN set -x && \
         musl-dev
 
 
-RUN pip3 install cmake==3.25.0
+RUN pip3 install cmake==3.25.0 pybind11
 
 # Clone the dnp3-python repository
 RUN git clone --recurse-submodules https://github.com/VOLTTRON/dnp3-python.git /opt/dnp3-python
 
 # Set up Python environment
 RUN cd /opt/dnp3-python && \
-    python3 setup.py bdist_wheel --plat-name=manylinux1_x86_64 -- -j1
+    python3 setup.py bdist_wheel --plat-name=manylinux2014_aarch64 -- -j1
 
 
 ENV WORK_DIR=workdir \
