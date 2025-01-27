@@ -9,7 +9,7 @@ RUN set -x && \
         git
 
 # Clone the dnp3-python repository
-RUN git clone --recurse-submodules https://github.com/your-repo/dnp3-python.git /opt/dnp3-python
+RUN git clone --recurse-submodules https://github.com/VOLTTRON/dnp3-python.git /opt/dnp3-python
 
 # Set up Python environment
 RUN python3 -m ensurepip && \
