@@ -16,7 +16,8 @@ RUN pip3 install cmake
 RUN git clone --recurse-submodules https://github.com/VOLTTRON/dnp3-python.git /opt/dnp3-python
 
 # Set up Python environment
-RUN python setup.py bdist_wheel --plat-name=manylinux1_x86_64
+RUN cd /opt/dnp3-python && \
+    python3 setup.py bdist_wheel --plat-name=manylinux1_x86_64
 
 
 ENV WORK_DIR=workdir \
