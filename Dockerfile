@@ -10,7 +10,7 @@ RUN set -x && \
         libffi-dev \
         musl-dev
 
-RUN pip3 install cmake
+RUN pip3 install -r requirements.txt
 
 # Clone the dnp3-python repository
 RUN git clone --recurse-submodules https://github.com/VOLTTRON/dnp3-python.git /opt/dnp3-python
@@ -28,7 +28,6 @@ WORKDIR /${WORK_DIR}
 COPY requirements.txt .
 
 # install python libraries
-RUN pip3 install -r requirements.txt
 # RUN pip3 install dnp3-python
 # dnp3-python==0.2.3b2
 # Copy code
