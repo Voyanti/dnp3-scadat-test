@@ -6,7 +6,9 @@ RUN set -x && \
         build-base \
         git \
         boost-dev \ 
-        openssl-dev
+        openssl-dev \
+        libffi-dev \
+        musl-dev
 
 RUN pip3 install cmake
 
@@ -22,7 +24,7 @@ RUN python3 -m ensurepip && \
 
 
 ENV WORK_DIR=workdir \
-HASSIO_DATA_PATH=/data
+    HASSIO_DATA_PATH=/data
   
 RUN mkdir -p ${WORK_DIR}
 WORKDIR /${WORK_DIR}
