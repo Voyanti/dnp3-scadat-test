@@ -12,14 +12,14 @@ RUN set -x && \
         openssl-dev
 
 # Clone the dnp3-python repository
-# RUN git clone --recurse-submodules https://github.com/VOLTTRON/dnp3-python.git /opt/dnp3-python
+RUN git clone --recurse-submodules https://github.com/VOLTTRON/dnp3-python.git /opt/dnp3-python
 
 # Set up Python environment
-# RUN python3 -m ensurepip && \
-#     pip3 install --upgrade pip setuptools wheel && \
-#     cd /opt/dnp3-python && \
-#     python3 setup.py bdist_wheel --plat-name=manylinux1_x86_64 && \
-#     pip3 install dist/dnp3_python-*.whl
+RUN python3 -m ensurepip && \
+    pip3 install --upgrade pip setuptools wheel && \
+    cd /opt/dnp3-python && \
+    python3 setup.py bdist_wheel --plat-name=manylinux1_x86_64 && \
+    pip3 install dist/dnp3_python-*.whl
 
 
 ENV WORK_DIR=workdir \
@@ -31,7 +31,7 @@ COPY requirements.txt .
 
 # install python libraries
 RUN pip3 install -r requirements.txt
-RUN pip3 install dnp3-python
+# RUN pip3 install dnp3-python
 # dnp3-python==0.2.3b2
 # Copy code
 COPY outstation.py ./
