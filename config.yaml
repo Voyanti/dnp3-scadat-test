@@ -1,0 +1,19 @@
+name: "CCT SCADA"
+version: "0.0.1"
+slug: "cct_dp3_scada"
+description: "Home Assistant add-on CCT DMP3"
+url: "https://github.com/Voyanti/dnp3-scadat-test"
+init: false
+arch:
+  - amd64
+  - armv7
+  - aarch64
+startup: services
+boot: auto
+host_network: true
+
+options:
+  server: "vpn.example.com"
+
+schema:
+  server: str

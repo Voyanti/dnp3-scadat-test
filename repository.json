@@ -1,0 +1,11 @@
+{
+    "name": "CCT SCADA",
+    "url": "https://github.com/Voyanti/dnp3-scadat-test",
+    "maintainer": "Heinrich",
+    "homeassistant": "2023.1.0",
+    "arch": [
+      "amd64",
+      "armv7",
+      "aarch64"
+    ]
+  }
