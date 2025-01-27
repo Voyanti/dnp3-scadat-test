@@ -1,15 +1,15 @@
-FROM python:3.8-alpine
+FROM python:3.10-alpine
 
 # Install system dependencies
 RUN set -x && \
     apk add --no-cache \
-        openrc \
-        cmake \
-        g++ \
+        build-essential \
         build-base \
         git \
         boost-dev \ 
         openssl-dev
+
+RUN pip3 install cmake
 
 # Clone the dnp3-python repository
 RUN git clone --recurse-submodules https://github.com/VOLTTRON/dnp3-python.git /opt/dnp3-python
