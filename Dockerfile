@@ -18,7 +18,7 @@ RUN git clone --recurse-submodules https://github.com/VOLTTRON/dnp3-python.git /
 
 # Set up Python environment
 RUN cd /opt/dnp3-python && \
-    python3 setup.py bdist_wheel --plat-name=manylinux2014_aarch64 -- -j1
+    python3 setup.py bdist_wheel --plat-name=manylinux2014_aarch64
 
 
 ENV WORK_DIR=workdir \
