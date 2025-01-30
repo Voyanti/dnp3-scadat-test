@@ -1,33 +1,49 @@
-FROM python:3.10-alpine
+FROM python:3.8-alpine
 
-# Install system dependencies
-RUN set -x && \
-    apk add --no-cache \
-        build-base \
-        git \
-        boost-dev \ 
-        openssl-dev \
-        libffi-dev \
-        musl-dev
+# Install build dependencies
+RUN apk add --no-cache \
+    git \
+    build-base \
+    cmake \
+    python3-dev \
+    gcc \
+    g++ \
+    make \
+    linux-headers \
+    ca-certificates \
+    musl-dev \
+    libstdc++    # Add this to keep the runtime library
 
+# Create a working directory
+WORKDIR /build
 
-# RUN pip3 install cmake==3.25.0 pybind11
+# Clone the repository with submodules
+RUN git clone --recurse-submodules https://github.com/VOLTTRON/dnp3-python.git .
 
-# Clone the dnp3-python repository
-# RUN git clone --recurse-submodules https://github.com/VOLTTRON/dnp3-python.git /opt/dnp3-python
+# Add include for stdint.h
+RUN sed -i '1i#include <cstdint>' deps/pybind11/include/pybind11/attr.h
 
-# Set up Python environment
-# RUN cd /opt/dnp3-python && \
-#     python3 setup.py bdist_wheel --plat-name=linux_armv7l
+# Set environment variables for the build
+ENV CFLAGS="-I/usr/include"
+ENV CXXFLAGS="-I/usr/include"
 
+# Install build requirements
+RUN python3 -m pip install --no-cache-dir cmake setuptools wheel
 
+# Build and install the package
+RUN python3 setup.py install
+
+# Clean up build dependencies but keep runtime dependencies
+RUN apk del git build-base cmake python3-dev gcc g++ make linux-headers
+
+# Create a non-root user
 ENV WORK_DIR=workdir \
     HASSIO_DATA_PATH=/data
   
 RUN mkdir -p ${WORK_DIR}
 WORKDIR /${WORK_DIR}
-COPY requirements.txt .
-RUN pip3 install -r requirements.txt
+# COPY requirements.txt .
+# RUN pip3 install -r requirements.txt
 
 # install python libraries
 # RUN pip3 install dnp3-python
