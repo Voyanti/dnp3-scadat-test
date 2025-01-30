@@ -1,3 +1,5 @@
 argcomplete==3.5.3
 cmake==3.31.4
+dnp3-python==0.3.0b2
 hercules==0.0
+pybind11==2.13.6
