@@ -148,15 +148,16 @@ class MQTTClientWrapper:
             logger.info(f"Attempting to connect to {host}:{port}")
         except Exception as e:
             logger.error(f"MQTT Connection error: {e}")
+            raise
 
-    def start(self):
+    def start_loop(self):
         """
         Start the MQTT client loop
         """
         self.client.loop_start()
         logger.info("MQTT client loop started")
 
-    def stop(self):
+    def stop_loop(self):
         """
         Stop the MQTT client loop
         """
