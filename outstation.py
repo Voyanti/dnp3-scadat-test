@@ -49,7 +49,7 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         We confirm here if the command *can* be operated on.
         """
         logger.info(f"Select (index={index}): command={command.value} op_type={op_type}")
-        status = opendnp3.CommandStatus.SUCCESS
+        status = opendnp3.CommandStatus.SUCCESS # TODO validation
         return status
 
     def Operate(self, command, index, op_type, num_retries):
@@ -95,8 +95,8 @@ class MyOutstationApplication(opendnp3.IOutstationApplication):
     def __init__(self):
         super(MyOutstationApplication, self).__init__()
 
-    def OnStateChange(self, state):
-        logger.info(f"OutstationApplication - state changed: {opendnp3.ChannelStateToString(state)}")
+    # def OnStateChange(self, state):
+    #     logger.info(f"OutstationApplication - state changed: {(state.__getstate__())}")
 
     def SupportsWriteAbsoluteTime(self):
         return True
@@ -130,7 +130,8 @@ class DNP3Outstation:
                  listen_port=20000):
 
         # 1) Create a manager
-        self.manager = asiodnp3.DNP3Manager(1)
+        dnp3_logger = asiodnp3.ConsoleLogger().Create()
+        self.manager = asiodnp3.DNP3Manager(1, dnp3_logger)  # (concurrency_hint, handler: IlogHandler, ...)
         # self.manager.SetLogFilters(openpal.LogFilters(opendnp3.levels.NORMAL))
         logger.info("DNP3 Manager created.")
 
@@ -183,8 +184,8 @@ class DNP3Outstation:
         #   - Power Gradient Constraint Mode (ON/OFF)
         for i in range(2):
             bi_config = outstation_config.dbConfig.binary[i]
-            bi_config.clazz = opendnp3.PointClass.Class1
-            bi_config.evariation = opendnp3.EventBinaryVariation.Group2Var2
+            bi_config.clazz = opendnp3.PointClass.Class1                        # class 0 for static data, class 1, 2, 3 for hig, med, low priority event data 
+            bi_config.evariation = opendnp3.EventBinaryVariation.Group2Var2     # event variation
             bi_config.svariation = opendnp3.StaticBinaryVariation.Group1Var2
 
         # *** Analogs *** 
@@ -235,7 +236,7 @@ class DNP3Outstation:
         # 2) Add updates for each point:
 
         # Binary points (index=0 => Production Constraint Mode, index=1 => Power Gradient Constraint Mode)
-        builder.Update(
+        builder.Update(                 # measurement, index: opendnp3.Binary | opendnp3.Analog, index: ?, mode: opendnp3.EventMode
             opendnp3.Binary(True), 
             0, 
             opendnp3.EventMode.Detect
