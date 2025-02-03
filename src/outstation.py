@@ -3,6 +3,8 @@ import sys
 import time
 from datetime import datetime
 
+from loader import load_config
+
 from pydnp3 import opendnp3, openpal, asiopal, asiodnp3
 
 # ------------------------------------------------------
@@ -15,6 +17,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+EVENT_BUFFER_SIZE = 20
+
+from enum import Enum
+class BinaryAddressIndex(Enum):
+    b_production_constraint = 0
+    b_power_gradient_constraint = 0
+class AnalogAddressIndex(Enum):
+    a_total_power = 0                           # by Embedded Generation (EG) PLant
+    a_reactive_power = 1                        # at point of connection (POC) to CCT
+    a_exported_or_imported_power = 2            # at POC
+
+    a_production_constraint_setpoint = 3        # 0 - master output index
+    a_power_gradient_constraint_ramp_up = 4     # 1
+    a_power_gradient_constraint_ramp_down = 5   # 2
 # ------------------------------------------------------
 # Custom Command Handler
 # This is where we handle control requests (Select/Operate)
@@ -130,8 +146,7 @@ class DNP3Outstation:
                  listen_port=20000):
 
         # 1) Create a manager
-        dnp3_logger = asiodnp3.ConsoleLogger().Create()
-        self.manager = asiodnp3.DNP3Manager(1, dnp3_logger)  # (concurrency_hint, handler: IlogHandler, ...)
+        self.manager = asiodnp3.DNP3Manager(1, asiodnp3.ConsoleLogger().Create())  # (concurrency_hint, handler: IlogHandler, ...)
         # self.manager.SetLogFilters(openpal.LogFilters(opendnp3.levels.NORMAL))
         logger.info("DNP3 Manager created.")
 
@@ -151,28 +166,39 @@ class DNP3Outstation:
         self.command_handler = MyCommandHandler()
         self.outstation_application = MyOutstationApplication()
 
-        # ...
-        db_sizes = opendnp3.DatabaseSizes()
+        # stack, database config
+        outstation_config = self.configureOutstationStack(outstation_addr, master_addr)
+
+        # 4) Create the outstation
+        self.outstation = self.channel.AddOutstation(
+            "my-outstation",               # id: str
+            self.command_handler,          # commandHandler: ICmdHandler
+            self.outstation_application,   # application: IOutstationApplication
+            outstation_config              # config: OutstationStackConfig
+        )
+
+        # 5) Enable the outstation so it starts accepting connections
+        self.outstation.Enable()
+        logger.info("Outstation enabled.")
+
+    def configureOutstationStack(self, outstation_addr, master_addr) -> asiodnp3.OutstationStackConfig:
+        # db Sizes
+        db_sizes = opendnp3.DatabaseSizes()         # all sizes zero
         db_sizes.numBinary = 2       # We have 2 binary inputs
         db_sizes.numAnalog = 6       # We have 6 analog inputs
         # If you have counters, binary output status, or analog output status, set them accordingly.
 
-        outstation_config = asiodnp3.OutstationStackConfig(db_sizes)
-
+        outstation_config = asiodnp3.OutstationStackConfig(db_sizes)    # configuration struct that contains all the config information for a dnp3 outstation stack.
+        
+        # Defines the number of events to keep in buffer. hHen a value is updated using UpdateBuilder, an event is added to the buffer 
+        outstation_config.outstation.eventBufferConfig = opendnp3.EventBufferConfig().AllTypes(EVENT_BUFFER_SIZE)
         # ---- Link Layer Addresses ----
         outstation_config.link.LocalAddr = outstation_addr
         outstation_config.link.RemoteAddr = master_addr
+        # disable unsolicited TODO support setting this to diabled from master?
+        outstation_config.outstation.params.allowUnsolicited = False        
 
-        # ---- Timers, Buffers, Etc. ----
-        # Adjust to your needs
-        outstation_config.outstation.eventBufferConfig.maxBinaryEvents = 10
-        outstation_config.outstation.eventBufferConfig.maxAnalogEvents = 20
-
-        # Set class masks so the Master can poll for them
-        # (Class 0 for static, Class 1/2/3 for event data)
-        outstation_config.outstation.params.allowUnsolicited = False  # disable unsolicited
-        # Your table says "The Client interface will be configured to poll for Class data and disable unsolicited."
-
+        # db Config
         # ---- Define the database layout: 8 total points ----
         #  - 2 binary inputs
         #  - 6 analog inputs
@@ -184,18 +210,18 @@ class DNP3Outstation:
         #   - Power Gradient Constraint Mode (ON/OFF)
         for i in range(2):
             bi_config = outstation_config.dbConfig.binary[i]
+            # class id for event interrogations. static interrogations are always class 0
             bi_config.clazz = opendnp3.PointClass.Class1                        # class 0 for static data, class 1, 2, 3 for hig, med, low priority event data 
             bi_config.evariation = opendnp3.EventBinaryVariation.Group2Var2     # event variation
-            bi_config.svariation = opendnp3.StaticBinaryVariation.Group1Var2
+            bi_config.svariation = opendnp3.StaticBinaryVariation.Group1Var2 
 
         # *** Analogs *** 
         #    indexes: 
         #        0,1,2 => 32-bit floating (Watts, VAR, Export/Import)
         #        3,4,5 => 16-bit analog (Echo constraints)
-        #    each with event class 1 for demonstration
         for i in range(6):
             ai_config = outstation_config.dbConfig.analog[i]
-            ai_config.clazz = opendnp3.PointClass.Class1
+            ai_config.clazz = opendnp3.PointClass.Class2
             if i in [0,1,2]:
                 # 32-bit analog input 
                 # Use Object30 Var5 for static, Object32 Var7 for event
@@ -212,18 +238,7 @@ class DNP3Outstation:
         #   You won't see these in the DB config by default. We only handle them in the command handler.
         #   But if you want to keep track of an 'analog output status' (Obj 40 Var 2 or 42, etc.), 
         #   you can configure them similarly in the outstation’s database if desired.
-
-        # 4) Create the outstation
-        self.outstation = self.channel.AddOutstation(
-            "my-outstation",               # id: str
-            self.command_handler,          # commandHandler: ICmdHandler
-            self.outstation_application,   # application: IOutstationApplication
-            outstation_config              # config: OutstationStackConfig
-        )
-
-        # 5) Enable the outstation so it starts accepting connections
-        self.outstation.Enable()
-        logger.info("Outstation enabled.")
+        return outstation_config
 
     def update_values(self):
         """
@@ -236,14 +251,14 @@ class DNP3Outstation:
         # 2) Add updates for each point:
 
         # Binary points (index=0 => Production Constraint Mode, index=1 => Power Gradient Constraint Mode)
-        builder.Update(                 # measurement, index: opendnp3.Binary | opendnp3.Analog, index: ?, mode: opendnp3.EventMode
+        builder.Update(                 # measurement, index: opendnp3.Binary | opendnp3.Analog, index: ?, mode: opendnp3.EventMode (Detect, Force, Suppress)
             opendnp3.Binary(True), 
-            0, 
-            opendnp3.EventMode.Detect
+            BinaryAddressIndex.b_production_constraint.value, 
+            opendnp3.EventMode.Detect   # will only generate an event if a change actually occured from this update. use force to create an event for each update, suppress for no events
         )
         builder.Update(
             opendnp3.Binary(False), 
-            1, 
+            BinaryAddressIndex.b_power_gradient_constraint.value, 
             opendnp3.EventMode.Detect
         )
 
@@ -251,17 +266,17 @@ class DNP3Outstation:
         # Example values for demonstration:
         builder.Update(
             opendnp3.Analog(12345.0), 
-            0, 
+            AnalogAddressIndex.a_total_power.value, 
             opendnp3.EventMode.Detect
         )  # Watts
         builder.Update(
             opendnp3.Analog(678.9), 
-            1, 
+            AnalogAddressIndex.a_reactive_power.value, 
             opendnp3.EventMode.Detect
         )    # VARs
         builder.Update(
             opendnp3.Analog(-50.0), 
-            2, 
+            AnalogAddressIndex.a_exported_or_imported_power.value, 
             opendnp3.EventMode.Detect
         )    # Export/Import Power
 
@@ -270,35 +285,22 @@ class DNP3Outstation:
         cmd_handler = self.command_handler
         builder.Update(
             opendnp3.Analog(cmd_handler.production_constraint), 
-            3, 
+            AnalogAddressIndex.a_production_constraint_setpoint.value, 
             opendnp3.EventMode.Detect
         )
         builder.Update(
             opendnp3.Analog(cmd_handler.ramp_up_rate), 
-            4, 
+            AnalogAddressIndex.a_power_gradient_constraint_ramp_up.value, 
             opendnp3.EventMode.Detect
         )
         builder.Update(
             opendnp3.Analog(cmd_handler.ramp_down_rate), 
-            5, 
+            AnalogAddressIndex.a_power_gradient_constraint_ramp_down.value, 
             opendnp3.EventMode.Detect
         )
 
         # 3) Apply the changes to the outstation
         self.outstation.Apply(builder.Build())
-
-    def run_loop(self):
-        """
-        Simple run loop. You’d integrate this into your application’s main loop or use another scheduling mechanism.
-        """
-        logger.info("Entering main run loop. Press Ctrl+C to exit.")
-        try:
-            while True:
-                self.update_values()
-                time.sleep(5)
-        except KeyboardInterrupt:
-            logger.info("Shutting down outstation...")
-            self.shutdown()
 
     def shutdown(self):
         """
@@ -306,15 +308,3 @@ class DNP3Outstation:
         """
         self.channel.Shutdown()
         self.manager.Shutdown()
-
-# ------------------------------------------------------
-# Entry point
-# ------------------------------------------------------
-if __name__ == "__main__":
-    outstation = DNP3Outstation(
-        outstation_addr=101,  # As per your test requirement
-        master_addr=100,      # The SCADA Master
-        listen_ip="0.0.0.0",  # Listen on all interfaces
-        listen_port=20000
-    )
-    outstation.run_loop()

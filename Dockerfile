@@ -27,8 +27,9 @@ RUN sed -i '1i#include <cstdint>' deps/pybind11/include/pybind11/attr.h
 ENV CFLAGS="-I/usr/include"
 ENV CXXFLAGS="-I/usr/include"
 
-# Install build requirements
-RUN python3 -m pip install --no-cache-dir cmake setuptools wheel
+# Install build requirements and dependencies
+RUN python3 -m pip install --no-cache-dir cmake setuptools wheel \
+        paho-mqtt cattrs
 
 # Build and install the package
 RUN python3 setup.py install
@@ -49,7 +50,7 @@ WORKDIR /${WORK_DIR}
 # RUN pip3 install dnp3-python
 # dnp3-python==0.2.3b2
 # Copy code
-COPY outstation.py ./
+COPY src/* ./
 COPY run.sh  ./
 
 

@@ -1,7 +1,7 @@
 name: "CCT SCADA"
-version: "0.0.18"
+version: "0.0.19"
 slug: "cct_dp3_scada"
-description: "Home Assistant add-on CCT DMP3"
+description: "Home Assistant add-on CCT DNP3"
 url: "https://github.com/Voyanti/dnp3-scadat-test"
 init: false
 arch:
@@ -14,6 +14,20 @@ host_network: true
 
 options:
   server: "vpn.example.com"
+  OUTSTATION_ADDR: 101
+  LISTEN_IP: "0.0.0.0"
+
+  mqtt_host: core-mosquitto
+  mqtt_port: 1883
+  mqtt_user: mqtt-user
+  mqtt_password: mqtt-user
 
 schema:
   server: str
+  outstation_addr: int
+  listen_ip: str
+  
+  mqtt_host: str
+  mqtt_port: int
+  mqtt_user: str
+  mqtt_password: str
