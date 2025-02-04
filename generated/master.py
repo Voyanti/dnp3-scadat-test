@@ -102,7 +102,7 @@ class DNP3Master:
 
     def poll_class_data(self):
         """Poll for all class data"""
-        header = opendnp3.Header().AllObjects(60, 1)  # Class 0 data
+        header = opendnp3.Header().AllObjects(60, 1)  # Class 0 data # group 60 variation 1
         self.master.ScanRange(header, lambda task: self._scan_callback(task))
 
     def _scan_callback(self, task):
@@ -115,7 +115,7 @@ class DNP3Master:
             while True:
                 # Poll for data
                 logger.info("Polling for class data...")
-                self.poll_class_data()
+                # self.poll_class_data()
                 time.sleep(2)
 
                 # Send some commands

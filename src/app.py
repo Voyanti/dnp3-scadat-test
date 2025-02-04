@@ -1,48 +1,86 @@
 import logging
 from time import sleep
-from queue import Queue
 
 from outstation import DNP3Outstation
 from loader import load_config, Options
 from mqtt_wrapper import MQTTClientWrapper
 
 logger = logging.getLogger(__name__)
-RECV_Q = Queue()
 
-def loop(station: DNP3Outstation):
+from structs import Values, Controls
+class SpoofValues(Values):
+    def update_controls(self, controls: Controls):
+        """ spoof setting inverter/controller by homeassistant.
+
+            copies controls to values."""
+        self.production_constraint_setpoint = controls.production_constraint_setpoint
+        self.power_gradient_constraint_ramp_up = controls.power_gradient_constraint_ramp_up
+        self.power_gradient_constraint_ramp_down = controls.power_gradient_constraint_ramp_down
+
+    @property
+    def values(self):
+        """ return fake changing values, with controls applied """
+        # spoof changes
+        self.total_power_generated += 1
+        self.reactive_power += 2
+        self.exported_or_imported_power += 3
+
+        return self
+
+def main():
+    OPTS: Options = load_config()               # homeassistant config.yaml -> Options
+    
+    # setup mqtt client for reading latest values from homeassistant
+    mqtt_client = MQTTClientWrapper(OPTS.mqtt_user, OPTS.mqtt_password)
+    mqtt_client.connect(OPTS.mqtt_host, OPTS.mqtt_port)
+    mqtt_client.subscribe(topic = "scada/*")
+    
+    outstation = DNP3Outstation(                # Configure Outstation
+        outstation_addr=OPTS.outstation_addr,   # 101 for test, change in production
+        master_addr=100,                        # The SCADA Master @ CCT
+        listen_ip=OPTS.listen_ip,               # Listen on all interfaces == 0.0.0.0
+        listen_port=20000
+    )
+
+    loop(outstation, mqtt_client)               # main loop
+
+def loop(station: DNP3Outstation, 
+         mqtt_client: MQTTClientWrapper):
     logger.info("Entering main run loop. Press Ctrl+C to exit.")
     try:
+        mqtt_client.start_loop()
+        station.enable()
+
+        spoof_vals = SpoofValues()
+
         while True:
-            station.update_values()
-            sleep(5)
-            while not RECV_Q.empty(): # loop over queue. Note queue can still grow between evaluation and return
-                # update outstation data point with value from mqtt message
-                message = RECV_Q.get()
-                # TODO will we use MQTT to get the event info? what if we need to use a template sensor
-            # alternative: block until an update is received: RECV_Q.get()
+            latest_controls = station.controls
+            spoof_vals.update_controls(latest_controls)        
+
+            latest_values = spoof_vals.values
+            station.update_values(latest_values)
+
+            sleep(1)
+
+            # latest_controls = station.controls  # read controls from station
+            # mqtt_client.update_controls(latest_controls)        # write latest controls to mqtt
+
+            # sleep(0.005)
+
+            # latest_values = mqtt_client.values                  # read homeassistant values into object
+            # station.update_values(latest_values)                # update station values from last read homeassistant values
+
+            # sleep(1)
+
     except KeyboardInterrupt as e:
         logger.info("Shutting down outstation...")
         station.shutdown()
     except:
         logger.info("Shutting down outstation due to exception...")
-        station.shutdown()
         raise
+    finally:
+        station.shutdown()
+        mqtt_client.stop_loop()
 
 if __name__ == "__main__":
-    try:
-        OPTS: Options = load_config()
-        
-        mqtt_client = MQTTClientWrapper(OPTS.mqtt_user, OPTS.mqtt_password)
-        mqtt_client.connect(OPTS.mqtt_host, OPTS.mqtt_port)
-
-        mqtt_client.start_loop()
-        outstation = DNP3Outstation(
-            outstation_addr=OPTS.outstation_addr,   # As per your test requirement
-            master_addr=100,                        # The SCADA Master
-            listen_ip=OPTS.listen_ip,               # Listen on all interfaces
-            listen_port=20000
-        )
-
-        loop(outstation)
-    finally:
-        mqtt_client.stop_loop()
+    main()

@@ -31,8 +31,8 @@ def load_config(config_path = '/data/options.json') -> Options:
             default_config = Options(
                 outstation_addr=101,
                 listen_ip="0.0.0.0",
-                mqtt_host="core-mosquitto",
-                mqtt_port = 1883,
+                mqtt_host="localhost",
+                mqtt_port = 1884,
                 mqtt_user="mqtt-user",
                 mqtt_password="mqtt-user"
                 )

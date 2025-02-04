@@ -5,6 +5,7 @@ from typing import Optional, Any, Callable
 
 from random import getrandbits
 from time import time
+from structs import Values, Controls
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class MQTTClientWrapper:
         uuid = generate_uuid()
         # Create MQTT client
         self.client = mqtt.Client(
-            client_id=f"modbus-{uuid}", 
+            client_id=f"mqtt-outstation-{uuid}", 
             protocol=mqtt.MQTTv5  # API version 2
         )
 
@@ -43,6 +44,8 @@ class MQTTClientWrapper:
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
+
+        self._values = Values()
 
     def _on_connect(self, 
                     client: mqtt.Client, 
@@ -93,16 +96,35 @@ class MQTTClientWrapper:
         :param userdata: User-defined data
         :param message: Received message
         """
-        # if message.retain: return                             # TODO dont put old messages?
         try:
-            self.message_queue.put({
-                'topic': message.topic,
-                'payload': message.payload.decode('utf-8'),
-                'qos': message.qos
-            })
+            self._update_values(message.topic, message.payload.decode('utf-8'))  # retained values on other addon restart will be used - maybe not wanted
             logger.debug(f"Message received on topic {message.topic}")
         except Exception as e:
             logger.error(f"Error processing message: {e}")
+
+    def _update_values(self, topic: str, value):
+        if topic == "asdf":     self._values.power_gradient_constraint_ramp_down = value
+        elif topic == "fghj":   self._values.power_gradient_constraint_ramp_up = value
+        elif topic == "dfgh":   self._values.power_gradient_constraint_mode = value
+        elif topic == "sdfg":   self._values.exported_or_imported_power = value
+        elif topic == "ghjk":   self._values.total_power_generated = value
+        elif topic == "hjkl":   self._values.reactive_power = value
+        # TODO complete and define better mapping method
+        else: raise ValueError(f"Unconfigured topic {topic}.")
+
+    @property
+    def values(self):
+        """Get the mqtt internal data values (read-only)"""
+        return self._value
+    
+    def update_controls(self, controls: Controls):
+        payload = {
+            "TODO": "TODO"
+        }
+
+        self.client.publish(topic = "",
+                            payload = payload,
+                            retain = True)
 
     def subscribe(self, 
                   topic: str, 
@@ -163,17 +185,3 @@ class MQTTClientWrapper:
         """
         self.client.loop_stop()
         logger.info("MQTT client loop stopped")
-
-    # def get_message(self, block: bool = True, timeout: Optional[float] = None):
-    #     """
-    #     Retrieve a message from the queue
-        
-    #     :param block: Whether to block if queue is empty
-    #     :param timeout: Maximum time to wait
-    #     :return: Message or None
-    #     """
-    #     try:
-    #         return self.message_queue.get(block=block, timeout=timeout)
-    #     except queue.Empty:
-    #         logger.debug("No messages in queue")
-    #         return None

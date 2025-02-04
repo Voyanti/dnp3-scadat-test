@@ -3,7 +3,8 @@ import sys
 import time
 from datetime import datetime
 
-from loader import load_config
+from enum import IntEnum
+from structs import Values, Controls
 
 from pydnp3 import opendnp3, openpal, asiopal, asiodnp3
 
@@ -19,11 +20,10 @@ logger = logging.getLogger(__name__)
 
 EVENT_BUFFER_SIZE = 20
 
-from enum import Enum
-class BinaryAddressIndex(Enum):
+class BinaryAddressIndex(IntEnum):
     b_production_constraint = 0
-    b_power_gradient_constraint = 0
-class AnalogAddressIndex(Enum):
+    b_power_gradient_constraint = 1
+class AnalogAddressIndex(IntEnum):
     a_total_power = 0                           # by Embedded Generation (EG) PLant
     a_reactive_power = 1                        # at point of connection (POC) to CCT
     a_exported_or_imported_power = 2            # at POC
@@ -40,9 +40,9 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         super(MyCommandHandler, self).__init__()
 
         # Store the latest setpoint values here
-        self.production_constraint = 0   # index=0
-        self.ramp_up_rate          = 0   # index=1
-        self.ramp_down_rate        = 0   # index=2
+        self.production_constraint = 100   # index=0
+        self.ramp_up_rate          = 5   # index=1
+        self.ramp_down_rate        = 5   # index=2
 
     def Start(self):
         """
@@ -59,16 +59,16 @@ class MyCommandHandler(opendnp3.ICommandHandler):
     # ----------
     # SBO (Select) and Operate for AnalogOutputInt16
     # ----------
-    def Select(self, command, index, op_type, num_retries):
+    def Select(self, command, index):
         """
         Select is the 'Select' phase of select-before-operate. 
         We confirm here if the command *can* be operated on.
         """
-        logger.info(f"Select (index={index}): command={command.value} op_type={op_type}")
+        logger.info(f"Select (index={index}): command={command.value}")
         status = opendnp3.CommandStatus.SUCCESS # TODO validation
         return status
 
-    def Operate(self, command, index, op_type, num_retries):
+    def Operate(self, command, index, op_type):
         """
         Operate is the final 'Operate' phase of select-before-operate (or a direct operate).
         Here we actually *execute* the command logic.
@@ -147,6 +147,7 @@ class DNP3Outstation:
 
         # 1) Create a manager
         self.manager = asiodnp3.DNP3Manager(1, asiodnp3.ConsoleLogger().Create())  # (concurrency_hint, handler: IlogHandler, ...)
+        # self.manager = asiodnp3.DNP3Manager(1)  # (concurrency_hint, handler: IlogHandler, ...)
         # self.manager.SetLogFilters(openpal.LogFilters(opendnp3.levels.NORMAL))
         logger.info("DNP3 Manager created.")
 
@@ -177,6 +178,24 @@ class DNP3Outstation:
             outstation_config              # config: OutstationStackConfig
         )
 
+        self._controls = Controls(
+            self.command_handler.production_constraint,
+            self.command_handler.ramp_up_rate,
+            self.command_handler.ramp_down_rate
+        )
+
+    @property
+    def controls(self) -> Controls:
+        """ 
+        Read latest master-commanded controls from outstation.
+        """
+        self._controls.production_constraint_setpoint = self.command_handler.production_constraint
+        self._controls.power_gradient_constraint_ramp_up = self.command_handler.ramp_up_rate
+        self._controls.power_gradient_constraint_ramp_down = self.command_handler.ramp_down_rate
+
+        return self._controls
+
+    def enable(self):
         # 5) Enable the outstation so it starts accepting connections
         self.outstation.Enable()
         logger.info("Outstation enabled.")
@@ -240,11 +259,13 @@ class DNP3Outstation:
         #   you can configure them similarly in the outstation’s database if desired.
         return outstation_config
 
-    def update_values(self):
+    def update_values(self, values: Values):
         """
-        Periodically update the outstation's data for demonstration.
-        For real code, you would fetch live plant measurements here.
+        Update the outstation's data with plant measurements. Shoould be called periodically.
         """
+
+        # make sure to update homeassistant with command handler controls bedore updating the values read
+
         # 1) Create an UpdateBuilder
         builder = asiodnp3.UpdateBuilder()
 
@@ -252,50 +273,56 @@ class DNP3Outstation:
 
         # Binary points (index=0 => Production Constraint Mode, index=1 => Power Gradient Constraint Mode)
         builder.Update(                 # measurement, index: opendnp3.Binary | opendnp3.Analog, index: ?, mode: opendnp3.EventMode (Detect, Force, Suppress)
-            opendnp3.Binary(True), 
-            BinaryAddressIndex.b_production_constraint.value, 
+            opendnp3.Binary(values.production_constraint_mode), 
+            BinaryAddressIndex.b_production_constraint, 
             opendnp3.EventMode.Detect   # will only generate an event if a change actually occured from this update. use force to create an event for each update, suppress for no events
         )
         builder.Update(
-            opendnp3.Binary(False), 
-            BinaryAddressIndex.b_power_gradient_constraint.value, 
+            opendnp3.Binary(values.power_gradient_constraint_mode), 
+            BinaryAddressIndex.b_power_gradient_constraint, 
             opendnp3.EventMode.Detect
         )
 
         # 32-bit analogs: indexes [0..2]
         # Example values for demonstration:
         builder.Update(
-            opendnp3.Analog(12345.0), 
-            AnalogAddressIndex.a_total_power.value, 
+            opendnp3.Analog(values.total_power_generated), 
+            AnalogAddressIndex.a_total_power, 
             opendnp3.EventMode.Detect
         )  # Watts
         builder.Update(
-            opendnp3.Analog(678.9), 
-            AnalogAddressIndex.a_reactive_power.value, 
+            opendnp3.Analog(values.reactive_power), 
+            AnalogAddressIndex.a_reactive_power, 
             opendnp3.EventMode.Detect
         )    # VARs
         builder.Update(
-            opendnp3.Analog(-50.0), 
-            AnalogAddressIndex.a_exported_or_imported_power.value, 
+            opendnp3.Analog(values.exported_or_imported_power), 
+            AnalogAddressIndex.a_exported_or_imported_power, 
             opendnp3.EventMode.Detect
         )    # Export/Import Power
 
         # 16-bit analogs: indexes [3..5]
         # Echo the setpoints from the command handler
         cmd_handler = self.command_handler
+
+        # verify that values read match values set earlier
+        assert cmd_handler.production_constraint == values.production_constraint_setpoint
+        assert cmd_handler.ramp_up_rate == values.power_gradient_constraint_ramp_up
+        assert cmd_handler.ramp_down_rate == values.power_gradient_constraint_ramp_down
+
         builder.Update(
             opendnp3.Analog(cmd_handler.production_constraint), 
-            AnalogAddressIndex.a_production_constraint_setpoint.value, 
+            AnalogAddressIndex.a_production_constraint_setpoint, 
             opendnp3.EventMode.Detect
         )
         builder.Update(
             opendnp3.Analog(cmd_handler.ramp_up_rate), 
-            AnalogAddressIndex.a_power_gradient_constraint_ramp_up.value, 
+            AnalogAddressIndex.a_power_gradient_constraint_ramp_up, 
             opendnp3.EventMode.Detect
         )
         builder.Update(
             opendnp3.Analog(cmd_handler.ramp_down_rate), 
-            AnalogAddressIndex.a_power_gradient_constraint_ramp_down.value, 
+            AnalogAddressIndex.a_power_gradient_constraint_ramp_down, 
             opendnp3.EventMode.Detect
         )
 
