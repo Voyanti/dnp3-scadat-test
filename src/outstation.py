@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 
 from enum import IntEnum
-from structs import Values, Controls
+from structs import Values, CommandValues
 
 from pydnp3 import opendnp3, openpal, asiopal, asiodnp3
 
@@ -18,8 +18,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-EVENT_BUFFER_SIZE = 20
+EVENT_BUFFER_SIZE = 20      # VRAAG: word nerens genoem nie. hoe groot?
 
+# OutstationStackConfig Indexes
 class BinaryAddressIndex(IntEnum):
     b_production_constraint = 0
     b_power_gradient_constraint = 1
@@ -39,10 +40,22 @@ class MyCommandHandler(opendnp3.ICommandHandler):
     def __init__(self):
         super(MyCommandHandler, self).__init__()
 
-        # Store the latest setpoint values here
-        self.production_constraint = 100   # index=0
-        self.ramp_up_rate          = 5   # index=1
-        self.ramp_down_rate        = 5   # index=2
+        # Dtate: Store the latest setpoint values here
+        self.production_constraint = 100    # index=0 (outputs definition xlsx)
+        self.ramp_up_rate          = 5      # index=1
+        self.ramp_down_rate        = 5      # index=2
+
+        self._command_values = self._command_values_from_state()
+
+    def _command_values_from_state(self):
+        """ 
+        Update internal commandvaluies with latest commands, ready for sending to other classes.
+        """
+        return CommandValues(
+            self.production_constraint,
+            self.ramp_up_rate,
+            self.ramp_down_rate
+        )
 
     def Start(self):
         """
@@ -88,6 +101,8 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         else:
             logger.warning(f"Operate received for unknown index={index}")
             return opendnp3.CommandStatus.NOT_SUPPORTED
+
+        self._command_values = self._command_values_from_state()    # update command values for sending
 
         # Return success status
         return opendnp3.CommandStatus.SUCCESS
@@ -178,22 +193,14 @@ class DNP3Outstation:
             outstation_config              # config: OutstationStackConfig
         )
 
-        self._controls = Controls(
-            self.command_handler.production_constraint,
-            self.command_handler.ramp_up_rate,
-            self.command_handler.ramp_down_rate
-        )
+        self._controls = self.command_handler._command_values
 
     @property
-    def controls(self) -> Controls:
+    def command_values(self) -> CommandValues:
         """ 
-        Read latest master-commanded controls from outstation.
+        Read latest master-commanded controls from outstation if they were changed.
         """
-        self._controls.production_constraint_setpoint = self.command_handler.production_constraint
-        self._controls.power_gradient_constraint_ramp_up = self.command_handler.ramp_up_rate
-        self._controls.power_gradient_constraint_ramp_down = self.command_handler.ramp_down_rate
-
-        return self._controls
+        return self.command_handler._command_values
 
     def enable(self):
         # 5) Enable the outstation so it starts accepting connections
@@ -214,7 +221,7 @@ class DNP3Outstation:
         # ---- Link Layer Addresses ----
         outstation_config.link.LocalAddr = outstation_addr
         outstation_config.link.RemoteAddr = master_addr
-        # disable unsolicited TODO support setting this to diabled from master?
+        # VRAAG: disable unsolicited TODO support setting this to diabled from master?
         outstation_config.outstation.params.allowUnsolicited = False        
 
         # db Config
@@ -305,7 +312,7 @@ class DNP3Outstation:
         # Echo the setpoints from the command handler
         cmd_handler = self.command_handler
 
-        # verify that values read match values set earlier
+        # verify that values read, match commands set earlier
         assert cmd_handler.production_constraint == values.production_constraint_setpoint
         assert cmd_handler.ramp_up_rate == values.power_gradient_constraint_ramp_up
         assert cmd_handler.ramp_down_rate == values.power_gradient_constraint_ramp_down

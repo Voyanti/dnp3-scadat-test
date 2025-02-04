@@ -9,13 +9,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Options:
-    outstation_addr: int
-    listen_ip: str
+    outstation_addr: int        # DNP3 address e.g. 101
+    listen_ip: str              # binding ip on device for DNP3 connections e. g. 0.0.0.0/localhost
 
     mqtt_host: str
     mqtt_port: int
     mqtt_user: str
     mqtt_password: str
+
+DEFAULT_OPTIONS = \
+    Options(outstation_addr=101,
+            listen_ip="0.0.0.0",
+            mqtt_host="localhost",
+            mqtt_port = 1884,
+            mqtt_user="mqtt-user",
+            mqtt_password="mqtt-user")
 
 def load_config(config_path = '/data/options.json') -> Options:
     """
@@ -28,15 +36,7 @@ def load_config(config_path = '/data/options.json') -> Options:
     try:
         if not os.path.exists(config_path):
             logging.info(f"Config file not found at {config_path}. Using default options")
-            default_config = Options(
-                outstation_addr=101,
-                listen_ip="0.0.0.0",
-                mqtt_host="localhost",
-                mqtt_port = 1884,
-                mqtt_user="mqtt-user",
-                mqtt_password="mqtt-user"
-                )
-            return default_config
+            return DEFAULT_OPTIONS
 
         with open(config_path, 'r') as config_file:
             config = json.load(config_file)

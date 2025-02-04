@@ -5,7 +5,7 @@ from typing import Optional, Any, Callable
 
 from random import getrandbits
 from time import time
-from structs import Values, Controls
+from structs import Values, CommandValues
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ class MQTTClientWrapper:
         """Get the mqtt internal data values (read-only)"""
         return self._value
     
-    def update_controls(self, controls: Controls):
+    def update_controls(self, controls: CommandValues):
         payload = {
             "TODO": "TODO"
         }
