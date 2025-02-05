@@ -38,21 +38,10 @@ class MyCommandHandler(opendnp3.ICommandHandler):
     def __init__(self):
         super(MyCommandHandler, self).__init__()
 
-        # Dtate: Store the latest setpoint values here
-        self.production_constraint = 0    # index=0 (outputs definition xlsx)
-        self.ramp_up_rate          = 5      # index=1
-        self.ramp_down_rate        = 5      # index=2
-
-        self._command_values = self._command_values_from_state()
-
-    def _command_values_from_state(self):
-        """ 
-        Update internal commandvaluies with latest commands, ready for sending to other classes.
-        """
-        return CommandValues(
-            self.production_constraint,
-            self.ramp_up_rate,
-            self.ramp_down_rate
+        self.command_values = CommandValues(
+            production_constraint_setpoint=0,
+            gradient_ramp_up=100,
+            gradient_ramp_down=100
         )
 
     def Start(self):
@@ -88,19 +77,17 @@ class MyCommandHandler(opendnp3.ICommandHandler):
 
         # We only have 3 analog outputs (16-bit) mapped to indexes 0,1,2
         if index == 0:
-            self.production_constraint = command.value
-            logger.info(f"Production Constraint updated to {self.production_constraint}%")
+            self.command_values.production_constraint_setpoint = command.value
+            logger.info(f"Production Constraint updated to {command.value}%")
         elif index == 1:
-            self.ramp_up_rate = command.value
-            logger.info(f"Ramp Up Rate updated to {self.ramp_up_rate}%/minute")
+            self.command_values.gradient_ramp_up = command.value
+            logger.info(f"Ramp Up Rate updated to {command.value}%/minute")
         elif index == 2:
-            self.ramp_down_rate = command.value
-            logger.info(f"Ramp Down Rate updated to {self.ramp_down_rate}%/minute")
+            self.command_values.gradient_ramp_down = command.value
+            logger.info(f"Ramp Down Rate updated to {command.value}%/minute")
         else:
             logger.warning(f"Operate received for unknown index={index}")
             return opendnp3.CommandStatus.NOT_SUPPORTED
-
-        self._command_values = self._command_values_from_state()    # update command values for sending
 
         # Return success status
         return opendnp3.CommandStatus.SUCCESS
@@ -194,14 +181,12 @@ class DNP3Outstation:
             outstation_config              # config: OutstationStackConfig
         )
 
-        self._controls = self.command_handler._command_values
-
     @property
     def command_values(self) -> CommandValues:
         """ 
         Read latest master-commanded controls from outstation if they were changed.
         """
-        return self.command_handler._command_values
+        return self.command_handler.command_values
 
     def enable(self):
         # 5) Enable the outstation so it starts accepting connections
@@ -284,12 +269,12 @@ class DNP3Outstation:
 
         # Binary points (index=0 => Production Constraint Mode, index=1 => Power Gradient Constraint Mode)
         builder.Update(                 # measurement, index: opendnp3.Binary | opendnp3.Analog, index: ?, mode: opendnp3.EventMode (Detect, Force, Suppress)
-            opendnp3.Binary(values.production_constraint_mode), 
+            opendnp3.Binary(values.flag_production_constraint), 
             BinaryAddressIndex.b_production_constraint, 
             opendnp3.EventMode.Detect   # will only generate an event if a change actually occured from this update. use force to create an event for each update, suppress for no events
         )
         builder.Update(
-            opendnp3.Binary(values.power_gradient_constraint_mode), 
+            opendnp3.Binary(values.flag_gradient_constraint), 
             BinaryAddressIndex.b_power_gradient_constraint, 
             opendnp3.EventMode.Detect
         )
@@ -297,17 +282,17 @@ class DNP3Outstation:
         # 32-bit analogs: indexes [0..2]
         # Example values for demonstration:
         builder.Update(
-            opendnp3.Analog(values.total_power_generated), 
+            opendnp3.Analog(values.plant_ac_power_generated), 
             AnalogAddressIndex.a_total_power, 
             opendnp3.EventMode.Detect
         )  # Watts
         builder.Update(
-            opendnp3.Analog(values.reactive_power), 
+            opendnp3.Analog(values.grid_reactive_power), 
             AnalogAddressIndex.a_reactive_power, 
             opendnp3.EventMode.Detect
         )    # VARs
         builder.Update(
-            opendnp3.Analog(values.exported_or_imported_power), 
+            opendnp3.Analog(values.grid_exported_power), 
             AnalogAddressIndex.a_exported_or_imported_power, 
             opendnp3.EventMode.Detect
         )    # Export/Import Power
@@ -317,22 +302,22 @@ class DNP3Outstation:
         cmd_handler = self.command_handler
 
         # verify that values read, match commands set earlier
-        assert cmd_handler.production_constraint == values.production_constraint_setpoint
-        assert cmd_handler.ramp_up_rate == values.power_gradient_constraint_ramp_up
-        assert cmd_handler.ramp_down_rate == values.power_gradient_constraint_ramp_down
+        assert cmd_handler.command_values.production_constraint_setpoint == values.production_constraint_setpoint
+        assert cmd_handler.command_values.gradient_ramp_up == values.gradient_ramp_up
+        assert cmd_handler.command_values.gradient_ramp_down == values.gradient_ramp_down
 
         builder.Update(
-            opendnp3.Analog(cmd_handler.production_constraint), 
+            opendnp3.Analog(cmd_handler.command_values.production_constraint_setpoint), 
             AnalogAddressIndex.a_production_constraint_setpoint, 
             opendnp3.EventMode.Detect
         )
         builder.Update(
-            opendnp3.Analog(cmd_handler.ramp_up_rate), 
+            opendnp3.Analog(cmd_handler.command_values.gradient_ramp_up), 
             AnalogAddressIndex.a_power_gradient_constraint_ramp_up, 
             opendnp3.EventMode.Detect
         )
         builder.Update(
-            opendnp3.Analog(cmd_handler.ramp_down_rate), 
+            opendnp3.Analog(cmd_handler.command_values.gradient_ramp_down), 
             AnalogAddressIndex.a_power_gradient_constraint_ramp_down, 
             opendnp3.EventMode.Detect
         )

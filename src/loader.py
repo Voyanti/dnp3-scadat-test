@@ -18,15 +18,19 @@ class Options:
     mqtt_port: int
     mqtt_user: str
     mqtt_password: str
+    mqtt_base_topic: str
+
 
 DEFAULT_OPTIONS = \
-    Options(outstation_addr=101,
+    Options(server="vpn.example.com",
+            outstation_addr=101,
             listen_ip="0.0.0.0",
             event_buffer_size=20,
             mqtt_host="localhost",
             mqtt_port = 1884,
             mqtt_user="mqtt-user",
-            mqtt_password="mqtt-user")
+            mqtt_password="mqtt-user",
+            mqtt_base_topic="scada")
 
 def load_config(config_path = '/data/options.json') -> Options:
     """

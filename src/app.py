@@ -9,21 +9,24 @@ logger = logging.getLogger(__name__)
 
 from structs import Values, CommandValues
 class SpoofValues(Values):
+    max_capacity = 100e3
     def update_controls(self, controls: CommandValues):
         """ spoof setting inverter/controller by homeassistant.
 
             copies controls to values."""
         self.production_constraint_setpoint = controls.production_constraint_setpoint
-        self.power_gradient_constraint_ramp_up = controls.power_gradient_constraint_ramp_up
-        self.power_gradient_constraint_ramp_down = controls.power_gradient_constraint_ramp_down
+        self.gradient_ramp_up = controls.gradient_ramp_up
+        self.gradient_ramp_down = controls.gradient_ramp_down
+        self.flag_gradient_constraint = controls.flag_gradient_constraint
+        self.flag_production_constraint = controls.flag_production_constraint
 
     @property
     def values(self):
         """ return fake changing values, with controls applied """
         # spoof changes
-        self.total_power_generated += 1
-        self.reactive_power += 2
-        self.exported_or_imported_power += 3
+        self.plant_ac_power_generated = self.max_capacity * self.production_constraint_setpoint
+        self.grid_reactive_power += 2
+        self.grid_exported_power += 3
 
         return self
 
@@ -31,8 +34,11 @@ def main():
     OPTS: Options = load_config()               # homeassistant config.yaml -> Options
     
     # setup mqtt client for reading latest values from homeassistant
-    mqtt_client = MQTTClientWrapper(OPTS.mqtt_user, OPTS.mqtt_password)
-    mqtt_client.connect(OPTS.mqtt_host, OPTS.mqtt_port)
+    mqtt_client = MQTTClientWrapper(OPTS.mqtt_user, 
+                                    OPTS.mqtt_password, 
+                                    OPTS.mqtt_base_topic)
+    mqtt_client.connect(OPTS.mqtt_host, 
+                        OPTS.mqtt_port)
     mqtt_client.subscribe(topic = "scada/*")    # VRAAG: lees MQTT sensors vir Values, skryf na set topics vir CommandValues yes. echo terug na mqtt vir 
     
     outstation = DNP3Outstation(                # Configure Outstation

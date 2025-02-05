@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 class MQTTClientWrapper:
     def __init__(self, 
                 mqtt_user: str,
-                mqtt_password: str):
+                mqtt_password: str,
+                mqtt_base_topic: str):
         """
         Initialize the MQTT Client Wrapper
         
@@ -39,6 +40,7 @@ class MQTTClientWrapper:
         )
 
         self.client.username_pw_set(mqtt_user, mqtt_password)
+        self.mqtt_base_topic = mqtt_base_topic
         
         # Set callback methods
         self.client.on_connect = self._on_connect
@@ -97,26 +99,14 @@ class MQTTClientWrapper:
         :param message: Received message
         """
         try:
-            self._update_values(message.topic, message.payload.decode('utf-8'))  # retained values on other addon restart will be used - maybe not wanted
+            # TODO assume sensor topic: f"{self.mqtt_base_topic}/production_constraint_setpoint"
+            variable_name = message.topic.split("/")[-1]
+            value = message.payload.decode('utf-8')
+            setattr(self._values, variable_name, value)
+
             logger.debug(f"Message received on topic {message.topic}")
         except Exception as e:
             logger.error(f"Error processing message: {e}")
-
-    def _update_values(self, 
-                       topic: str, 
-                       value):
-        """
-        Used in _on_message to update a Values read object from subscribed discovery topics.
-        """
-
-        if topic == "asdf":     self._values.power_gradient_constraint_ramp_down = value
-        elif topic == "fghj":   self._values.power_gradient_constraint_ramp_up = value
-        elif topic == "dfgh":   self._values.power_gradient_constraint_mode = value
-        elif topic == "sdfg":   self._values.exported_or_imported_power = value
-        elif topic == "ghjk":   self._values.total_power_generated = value
-        elif topic == "hjkl":   self._values.reactive_power = value
-        # TODO complete and define better mapping method
-        else: raise ValueError(f"Unconfigured topic {topic}.")
 
     @property
     def values(self):
