@@ -18,8 +18,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-EVENT_BUFFER_SIZE = 20      # VRAAG: word nerens genoem nie. hoe groot?
-
 # OutstationStackConfig Indexes
 class BinaryAddressIndex(IntEnum):
     b_production_constraint = 0
@@ -41,7 +39,7 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         super(MyCommandHandler, self).__init__()
 
         # Dtate: Store the latest setpoint values here
-        self.production_constraint = 100    # index=0 (outputs definition xlsx)
+        self.production_constraint = 0    # index=0 (outputs definition xlsx)
         self.ramp_up_rate          = 5      # index=1
         self.ramp_down_rate        = 5      # index=2
 
@@ -158,7 +156,8 @@ class DNP3Outstation:
                  outstation_addr=101,
                  master_addr=100,
                  listen_ip="0.0.0.0",
-                 listen_port=20000):
+                 listen_port=20000,
+                 event_buffer_size=20):
 
         # 1) Create a manager
         self.manager = asiodnp3.DNP3Manager(1, asiodnp3.ConsoleLogger().Create())  # (concurrency_hint, handler: IlogHandler, ...)
@@ -183,7 +182,9 @@ class DNP3Outstation:
         self.outstation_application = MyOutstationApplication()
 
         # stack, database config
-        outstation_config = self.configureOutstationStack(outstation_addr, master_addr)
+        outstation_config = self.configureOutstationStack(outstation_addr, 
+                                                          master_addr, 
+                                                          event_buffer_size)
 
         # 4) Create the outstation
         self.outstation = self.channel.AddOutstation(
@@ -207,7 +208,7 @@ class DNP3Outstation:
         self.outstation.Enable()
         logger.info("Outstation enabled.")
 
-    def configureOutstationStack(self, outstation_addr, master_addr) -> asiodnp3.OutstationStackConfig:
+    def configureOutstationStack(self, outstation_addr, master_addr, event_buffer_size) -> asiodnp3.OutstationStackConfig:
         # db Sizes
         db_sizes = opendnp3.DatabaseSizes()         # all sizes zero
         db_sizes.numBinary = 2       # We have 2 binary inputs
@@ -217,7 +218,10 @@ class DNP3Outstation:
         outstation_config = asiodnp3.OutstationStackConfig(db_sizes)    # configuration struct that contains all the config information for a dnp3 outstation stack.
         
         # Defines the number of events to keep in buffer. hHen a value is updated using UpdateBuilder, an event is added to the buffer 
-        outstation_config.outstation.eventBufferConfig = opendnp3.EventBufferConfig().AllTypes(EVENT_BUFFER_SIZE)
+        config = opendnp3.EventBufferConfig()
+        config.maxBinaryEvents = event_buffer_size
+        config.maxAnalogEvents = event_buffer_size
+        outstation_config.outstation.eventBufferConfig = config
         # ---- Link Layer Addresses ----
         outstation_config.link.LocalAddr = outstation_addr
         outstation_config.link.RemoteAddr = master_addr

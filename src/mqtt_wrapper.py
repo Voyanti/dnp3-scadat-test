@@ -102,7 +102,13 @@ class MQTTClientWrapper:
         except Exception as e:
             logger.error(f"Error processing message: {e}")
 
-    def _update_values(self, topic: str, value):
+    def _update_values(self, 
+                       topic: str, 
+                       value):
+        """
+        Used in _on_message to update a Values read object from subscribed discovery topics.
+        """
+
         if topic == "asdf":     self._values.power_gradient_constraint_ramp_down = value
         elif topic == "fghj":   self._values.power_gradient_constraint_ramp_up = value
         elif topic == "dfgh":   self._values.power_gradient_constraint_mode = value

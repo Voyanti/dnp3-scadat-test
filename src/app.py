@@ -33,13 +33,14 @@ def main():
     # setup mqtt client for reading latest values from homeassistant
     mqtt_client = MQTTClientWrapper(OPTS.mqtt_user, OPTS.mqtt_password)
     mqtt_client.connect(OPTS.mqtt_host, OPTS.mqtt_port)
-    mqtt_client.subscribe(topic = "scada/*")    # VRAAG: lees MQTT sensors vir Values, skryf na set topics vir CommandValues?
+    mqtt_client.subscribe(topic = "scada/*")    # VRAAG: lees MQTT sensors vir Values, skryf na set topics vir CommandValues yes. echo terug na mqtt vir 
     
     outstation = DNP3Outstation(                # Configure Outstation
         outstation_addr=OPTS.outstation_addr,   # 101 for test, change in production
         master_addr=100,                        # The SCADA Master @ CCT
         listen_ip=OPTS.listen_ip,               # Listen on all interfaces == 0.0.0.0
-        listen_port=20000
+        listen_port=20000,
+        event_buffer_size=OPTS.event_buffer_size
     )
 
     loop(outstation, mqtt_client)               # main loop

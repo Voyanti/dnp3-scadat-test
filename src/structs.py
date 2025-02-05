@@ -11,7 +11,7 @@ class Values:
     exported_or_imported_power: float = 0           # at POC
 
     # %
-    production_constraint_setpoint: int = 100       # 0 - master output index
+    production_constraint_setpoint: int = 0       # 0 - master output index
     power_gradient_constraint_ramp_up: int = 5      # 1
     power_gradient_constraint_ramp_down: int = 5    # 2
 

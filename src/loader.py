@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 class Options:
     outstation_addr: int        # DNP3 address e.g. 101
     listen_ip: str              # binding ip on device for DNP3 connections e. g. 0.0.0.0/localhost
+    event_buffer_size: int
 
     mqtt_host: str
     mqtt_port: int
@@ -20,6 +21,7 @@ class Options:
 DEFAULT_OPTIONS = \
     Options(outstation_addr=101,
             listen_ip="0.0.0.0",
+            event_buffer_size=20,
             mqtt_host="localhost",
             mqtt_port = 1884,
             mqtt_user="mqtt-user",
