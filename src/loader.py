@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Options:
+    server: str
     outstation_addr: int        # DNP3 address e.g. 101
     listen_ip: str              # binding ip on device for DNP3 connections e. g. 0.0.0.0/localhost
     event_buffer_size: int
@@ -43,7 +44,7 @@ def load_config(config_path = '/data/options.json') -> Options:
         with open(config_path, 'r') as config_file:
             config = json.load(config_file)
             
-        logger.log("Loaded config json")
+        logger.info("Loaded config json")
         converter = Converter()
         opts = converter.structure(config, Options)
         return opts
