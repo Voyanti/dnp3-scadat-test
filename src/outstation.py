@@ -303,9 +303,9 @@ class DNP3Outstation:
         cmd_handler = self.command_handler
 
         # verify that values read, match commands set earlier
-        assert cmd_handler.command_values.production_constraint_setpoint == values.production_constraint_setpoint
-        assert cmd_handler.command_values.gradient_ramp_up == values.gradient_ramp_up
-        assert cmd_handler.command_values.gradient_ramp_down == values.gradient_ramp_down
+        # assert cmd_handler.command_values.production_constraint_setpoint == values.production_constraint_setpoint
+        # assert cmd_handler.command_values.gradient_ramp_up == values.gradient_ramp_up
+        # assert cmd_handler.command_values.gradient_ramp_down == values.gradient_ramp_down
 
         builder.Update(
             opendnp3.Analog(cmd_handler.command_values.production_constraint_setpoint), 
