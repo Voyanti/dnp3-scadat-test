@@ -70,7 +70,7 @@ def loop(station: DNP3Outstation,
             logger.info(f"{latest_commands.production_constraint_setpoint}")
             mqtt_client.update_controls(latest_commands)        # write latest controls to mqtt
 
-            sleep(30)
+            sleep(0.005)
 
             latest_values = mqtt_client.values                  # read homeassistant values into object
             station.update_values(latest_values)                # update station values from last read homeassistant values
