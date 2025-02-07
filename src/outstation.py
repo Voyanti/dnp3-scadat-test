@@ -186,6 +186,7 @@ class DNP3Outstation:
         """ 
         Read latest master-commanded controls from outstation if they were changed.
         """
+        logger.info(f"{self.command_handler.command_values.production_constraint_setpoint}")
         return self.command_handler.command_values
 
     def enable(self):

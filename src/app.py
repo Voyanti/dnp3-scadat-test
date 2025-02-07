@@ -30,7 +30,7 @@ class SpoofValues(Values):
 
         return self
 
-def main():
+def main() -> None:
     OPTS: Options = load_config()               # homeassistant config.yaml -> Options
     
     # setup mqtt client for reading latest values from homeassistant
@@ -39,7 +39,8 @@ def main():
                                     OPTS.mqtt_base_topic)
     mqtt_client.connect(OPTS.mqtt_host, 
                         OPTS.mqtt_port)
-    mqtt_client.subscribe(topic = "scada/*")    # VRAAG: lees MQTT sensors vir Values, skryf na set topics vir CommandValues yes. echo terug na mqtt vir 
+    mqtt_client.publish_discovery_messages()
+    mqtt_client.subscribe()    # VRAAG: lees MQTT sensors vir Values, skryf na set topics vir CommandValues yes. echo terug na mqtt vir 
     
     outstation = DNP3Outstation(                # Configure Outstation
         outstation_addr=OPTS.outstation_addr,   # 101 for test, change in production
@@ -52,35 +53,29 @@ def main():
     loop(outstation, mqtt_client)               # main loop
 
 def loop(station: DNP3Outstation, 
-         mqtt_client: MQTTClientWrapper):
+         mqtt_client: MQTTClientWrapper) -> None:
     logger.info("Entering main run loop. Press Ctrl+C to exit.")
     
     try:
-        mqtt_client.start_loop()
         station.enable()
+        mqtt_client.start_loop()
 
-        spoof_vals = SpoofValues()
+        # spoof_vals = SpoofValues()
 
         while True:
-            latest_commands = station.command_values
-            spoof_vals.update_controls(latest_commands)        
+            # retry connecting to master
+            sleep(5)
 
-            latest_values = spoof_vals.values
-            station.update_values(latest_values)
+            latest_commands = station.command_values            # read controls from station
+            logger.info(f"{latest_commands.production_constraint_setpoint}")
+            mqtt_client.update_controls(latest_commands)        # write latest controls to mqtt
+
+            sleep(30)
+
+            latest_values = mqtt_client.values                  # read homeassistant values into object
+            station.update_values(latest_values)                # update station values from last read homeassistant values
 
             sleep(1)
-
-            """
-            # latest_controls = station.controls  # read controls from station
-            # mqtt_client.update_controls(latest_controls)        # write latest controls to mqtt
-
-            # sleep(0.005)
-
-            # latest_values = mqtt_client.values                  # read homeassistant values into object
-            # station.update_values(latest_values)                # update station values from last read homeassistant values
-
-            # sleep(1)
-            """
 
     except KeyboardInterrupt as e:
         logger.info("Shutting down outstation...")

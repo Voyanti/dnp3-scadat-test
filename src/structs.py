@@ -25,7 +25,7 @@ class CommandValues:
     """
         Contains command values for writeable datapoints.
     """
-    def __init__(self, production_constraint_setpoint, gradient_ramp_up, gradient_ramp_down):
+    def __init__(self, production_constraint_setpoint, gradient_ramp_up, gradient_ramp_down) -> None:
         self.production_constraint_setpoint: int = production_constraint_setpoint         # 0 - master output index
         self.gradient_ramp_up: int = gradient_ramp_up      # 1
         self.gradient_ramp_down: int = gradient_ramp_down    # 2
@@ -33,10 +33,10 @@ class CommandValues:
         # indicator flags: properties only
 
     @property
-    def production_constraint_setpoint(self): return self._production_constraint_setpoint
+    def production_constraint_setpoint(self) -> int: return self._production_constraint_setpoint
 
     @production_constraint_setpoint.setter
-    def production_constraint_setpoint(self, value):
+    def production_constraint_setpoint(self, value) -> None:
         """ sets production constraint and modifies flag appropriately """
         if value < 0 or value > 100:
             raise ValueError(f"Attempt to set invalid production constraint. {value=}")
@@ -45,10 +45,10 @@ class CommandValues:
 
 
     @property
-    def gradient_ramp_up(self): return self._gradient_ramp_up
+    def gradient_ramp_up(self) -> int: return self._gradient_ramp_up
     
     @gradient_ramp_up.setter
-    def gradient_ramp_up(self, value):
+    def gradient_ramp_up(self, value) -> None:
         """ sets gradient_ramp_up and modifies flag appropriately """
         if value < 0 or value > 100:
             raise ValueError(f"Attempt to set invalid ramp up. {value=}")
@@ -57,9 +57,10 @@ class CommandValues:
 
 
     @property
-    def gradient_ramp_down(self): return self._gradient_ramp_down
+    def gradient_ramp_down(self) -> int: return self._gradient_ramp_down
+
     @gradient_ramp_down.setter
-    def gradient_ramp_down(self, value):
+    def gradient_ramp_down(self, value) -> None:
         """ sets gradient_ramp_down and modifies flag appropriately """
         if value < 0 or value > 100:
             raise ValueError(f"Attempt to set invalid ramp down. {value=}")
@@ -68,12 +69,12 @@ class CommandValues:
 
 
     @property
-    def flag_production_constraint(self):
+    def flag_production_constraint(self) -> bool:
         """ production constraint mode is disabled if 100. """
         return self.production_constraint_setpoint != 100 
     
     @property
-    def flag_gradient_constraint(self):
+    def flag_gradient_constraint(self) -> bool:
         """ gradient constraint mode is disabled if both ramp up and ramp down == 100. """
         return not (self.gradient_ramp_down==100 and self.gradient_ramp_up==100)
 

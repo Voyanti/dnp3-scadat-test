@@ -1,5 +1,5 @@
 name: "CCT SCADA"
-version: "0.0.22"
+version: "0.0.23"
 slug: "cct_dp3_scada"
 description: "Home Assistant add-on CoCT DNP3"
 url: "https://github.com/Voyanti/dnp3-scadat-test"
@@ -31,5 +31,5 @@ schema:
   mqtt_host: str
   mqtt_port: int
   mqtt_user: str
-  mqtt_password: str
+  mqtt_password: password
   mqtt_base_topic: str
