@@ -68,7 +68,7 @@ def loop(station: DNP3Outstation,
 
             latest_commands = station.command_values            # read controls from station
             logger.info(f"{latest_commands.production_constraint_setpoint}")
-            mqtt_client.update_controls(latest_commands)        # write latest controls to mqtt
+            mqtt_client.publish_control(latest_commands, to_state_topic=True)        # write latest controls to mqtt
 
             sleep(0.005)
 

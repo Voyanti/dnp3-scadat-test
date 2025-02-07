@@ -133,10 +133,17 @@ class MQTTClientWrapper:
         logger.info(f"read values as updated from on_message")
         return self._values
 
-    def update_controls(self, controls: CommandValues):
+    def publish_control(self, controls: CommandValues, to_state_topic = False):
+        """
+        Publishes CommandValues to their respective MQTT command topics.
+
+        :param controls: The commanded values relayed from outstation.
+        :parama to_state_topic (Optional): publish to MQTT state topics, in addition to set topics. For testing/ verification purposes. 
+        """
         for entity in self.read_write_entity_info:
             control_name = entity['name']
             command_topic = f"{self.base_topic}/{control_name}/set"
+            state_topic = f"{self.base_topic}/{control_name}/state"
             value = getattr(controls, control_name)
 
             self.client.publish(
@@ -144,6 +151,12 @@ class MQTTClientWrapper:
                 payload=value,
                 retain=True,
             )
+            if to_state_topic:
+                self.client.publish(
+                    topic=state_topic,
+                    payload=value,
+                    retain=True,
+                )
             logger.info(f"Updated control {control_name=} on {command_topic=} with {value=}")
 
     def _build_payloads(self) -> dict:
