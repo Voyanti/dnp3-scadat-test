@@ -146,6 +146,10 @@ class MQTTClientWrapper:
             state_topic = f"{self.base_topic}/{control_name}/state"
             value = getattr(controls, control_name)
 
+            # ha accepts on/ off string as payload for running binary switch types
+            if isinstance(value, bool): 
+                value = self.bool_to_runningstate(value)
+
             self.client.publish(
                 topic=command_topic,
                 payload=value,
@@ -260,6 +264,11 @@ class MQTTClientWrapper:
         logger.info("Published Offline availability status")
         self.client.loop_stop()
         logger.info("MQTT client loop stopped")
+
+    @staticmethod
+    def bool_to_runningstate(b: bool) -> str:
+        if b: return "on"
+        return "off"
 
 
 if __name__ == "__main__":
