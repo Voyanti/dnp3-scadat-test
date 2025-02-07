@@ -47,6 +47,7 @@ class MQTTClientWrapper:
         self.client.on_message = self._on_message
 
         self._values = Values()
+        self.values_updated = True
 
         # name, device_class, unit, sensor_type
         self.read_entity_info = [                                    # topics that require a state_topic only
@@ -123,6 +124,8 @@ class MQTTClientWrapper:
             value = message.payload.decode("utf-8")
             setattr(self._values, variable_name, value)
 
+            self.values_updated = True
+
             logger.debug(f"Message received on topic {message.topic}")
         except Exception as e:
             logger.error(f"Error processing message: {e}")
@@ -131,6 +134,7 @@ class MQTTClientWrapper:
     def values(self):
         """Get the mqtt internal data values (read-only)"""
         logger.info(f"read values as updated from on_message")
+        self.values_updated = False
         return self._values
 
     def publish_control(self, controls: CommandValues, to_state_topic = False):

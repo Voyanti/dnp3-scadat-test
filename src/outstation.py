@@ -44,6 +44,8 @@ class MyCommandHandler(opendnp3.ICommandHandler):
             gradient_ramp_down=100
         )
 
+        self.commands_updated = True
+
     def Start(self):
         """
         Called when a new series of commands is begun (Task Start).
@@ -89,6 +91,7 @@ class MyCommandHandler(opendnp3.ICommandHandler):
             logger.warning(f"Operate received for unknown index={index}")
             return opendnp3.CommandStatus.NOT_SUPPORTED
 
+        self.commands_updated = True
         # Return success status
         return opendnp3.CommandStatus.SUCCESS
 
@@ -186,7 +189,7 @@ class DNP3Outstation:
         """ 
         Read latest master-commanded controls from outstation if they were changed.
         """
-        logger.info(f"{self.command_handler.command_values.production_constraint_setpoint}")
+        self.command_handler.commands_updated = False
         return self.command_handler.command_values
 
     def enable(self):

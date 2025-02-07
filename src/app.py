@@ -69,18 +69,20 @@ def loop(station: DNP3Outstation, mqtt_client: MQTTClientWrapper) -> None:
         while True:
             # retry connecting to master
 
-            latest_commands = station.command_values  # read controls from station
-            logger.info(f"{latest_commands.production_constraint_setpoint}")
-            mqtt_client.publish_control(
-                latest_commands, to_state_topic=True
-            )  # write latest controls to mqtt
+            # on_message> read mqtt_client.values> update station Values
 
-            sleep(0.001)
+            # on select&operate> read station commands> publish to mqtt_client
+            if station.command_handler.commands_updated:
+                latest_commands = station.command_values  # read controls from station
+                mqtt_client.publish_control(
+                    latest_commands, to_state_topic=True
+                )  # write latest controls to mqtt
 
-            latest_values = mqtt_client.values  # read homeassistant values into object
-            station.update_values(
-                latest_values
-            )  # update station values from last read homeassistant values
+            if mqtt_client.values_updated:
+                latest_values = mqtt_client.values  # read homeassistant values into object
+                station.update_values(
+                    latest_values
+                )  # update station values from last read homeassistant values
 
             sleep(0.001)
 
