@@ -1,13 +1,13 @@
 import logging
 from time import sleep
+import asyncio
 
 from outstation import DNP3Outstation
 from loader import load_config, Options
 from mqtt_wrapper import MQTTClientWrapper
+from structs import Values, CommandValues
 
 logger = logging.getLogger(__name__)
-
-from structs import Values, CommandValues
 
 
 class SpoofValues(Values):
@@ -36,9 +36,7 @@ class SpoofValues(Values):
         return self
 
 
-def main() -> None:
-    OPTS: Options = load_config()  # homeassistant config.yaml -> Options
-
+def setup_mqtt(OPTS: Options) -> MQTTClientWrapper:
     # setup mqtt client for reading latest values from homeassistant
     mqtt_client = MQTTClientWrapper(
         OPTS.mqtt_user, OPTS.mqtt_password, OPTS.mqtt_base_topic
@@ -46,6 +44,12 @@ def main() -> None:
     mqtt_client.connect(OPTS.mqtt_host, OPTS.mqtt_port)
     mqtt_client.publish_discovery_messages()
     mqtt_client.subscribe()  # VRAAG: lees MQTT sensors vir Values, skryf na set topics vir CommandValues yes. echo terug na mqtt vir
+
+    return mqtt_client
+
+
+async def main() -> None:
+    OPTS: Options = load_config()  # homeassistant config.yaml -> Options
 
     outstation = DNP3Outstation(  # Configure Outstation
         outstation_addr=OPTS.outstation_addr,  # 101 for test, change in production
@@ -55,46 +59,40 @@ def main() -> None:
         event_buffer_size=OPTS.event_buffer_size,
     )
 
-    loop(outstation, mqtt_client)  # main loop
+    mqtt_client = setup_mqtt(OPTS)
 
+    loop = asyncio.get_running_loop()
+    outstation.command_handler._main_loop = loop
+    mqtt_client._main_loop = loop
+    # outstation.command_handler.on_command_callback = mqtt_client.publish_control
+    outstation.command_handler.on_command_callback = lambda cmd, to_state_topic=True: mqtt_client.publish_control(cmd, to_state_topic)  # DEBUG
+    mqtt_client.on_message_callback = outstation.update_values
 
-def loop(station: DNP3Outstation, mqtt_client: MQTTClientWrapper) -> None:
     logger.info("Entering main run loop. Press Ctrl+C to exit.")
 
     try:
-        station.enable()
+        outstation.enable()
         mqtt_client.start_loop()
+        logger.info(f"sleep before main loop")
         sleep(3)
 
+        await outstation.update_values(mqtt_client._values)
+
         while True:
-            # retry connecting to master
-
-            # on_message> read mqtt_client.values> update station Values
-
-            # on select&operate> read station commands> publish to mqtt_client
-            if station.command_handler.commands_updated:
-                latest_commands = station.command_values  # read controls from station
-                mqtt_client.publish_control(
-                    latest_commands, to_state_topic=True
-                )  # write latest controls to mqtt
-
-            if mqtt_client.values_updated:
-                latest_values = mqtt_client.values  # read homeassistant values into object
-                station.update_values(
-                    latest_values
-                )  # update station values from last read homeassistant values
-
-            sleep(0.001)
+            await asyncio.sleep(1)
 
     except KeyboardInterrupt as e:
         logger.info("Shutting down outstation...")
+    except asyncio.CancelledError as ce:
+        logger.info(f"Async Cancelled")
+        raise ce
     except:
         logger.info("Shutting down outstation due to exception...")
         raise
     finally:
-        station.shutdown()
+        outstation.shutdown()
         mqtt_client.stop_loop()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

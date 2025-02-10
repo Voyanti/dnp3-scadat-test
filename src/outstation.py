@@ -2,6 +2,7 @@ import logging
 import sys
 import time
 from datetime import datetime
+import asyncio
 
 from enum import IntEnum
 from structs import Values, CommandValues
@@ -35,7 +36,7 @@ class AnalogAddressIndex(IntEnum):
 # This is where we handle control requests (Select/Operate)
 # ------------------------------------------------------
 class MyCommandHandler(opendnp3.ICommandHandler):
-    def __init__(self):
+    def __init__(self) -> None:
         super(MyCommandHandler, self).__init__()
 
         self.command_values = CommandValues(
@@ -44,7 +45,9 @@ class MyCommandHandler(opendnp3.ICommandHandler):
             gradient_ramp_down=100
         )
 
-        self.commands_updated = True
+        # Define a callback that takes a CommandValues object as argument, for passing commands from outstation 
+        self.on_command_callback = None
+        self._main_loop = None
 
     def Start(self):
         """
@@ -58,6 +61,21 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         """
         logger.info("CommandHandler: Done receiving commands.")
 
+    def handle_commands(self) -> None:
+        """ 
+        Async Calls self.on_command_callback after verifying its definition
+        """
+        # Use call_soon_threadsafe to schedule the callback on the main event loop
+        if self.on_command_callback and self._main_loop:
+            logger.info(f"Commands received from master, adding callback to event loop")
+            async def run_callback():
+                await self.on_command_callback(self.command_values, to_state_topic=True)
+            
+            self._main_loop.call_soon_threadsafe(
+                lambda: asyncio.create_task(run_callback())
+            )
+        else:
+            raise NotImplementedError(f"{self}.on_command_callback not defined")
     # ----------
     # SBO (Select) and Operate for AnalogOutputInt16
     # ----------
@@ -91,7 +109,8 @@ class MyCommandHandler(opendnp3.ICommandHandler):
             logger.warning(f"Operate received for unknown index={index}")
             return opendnp3.CommandStatus.NOT_SUPPORTED
 
-        self.commands_updated = True
+        self.handle_commands()
+
         # Return success status
         return opendnp3.CommandStatus.SUCCESS
 
@@ -147,11 +166,11 @@ class DNP3Outstation:
                  master_addr=100,
                  listen_ip="0.0.0.0",
                  listen_port=20000,
-                 event_buffer_size=20):
+                 event_buffer_size=20) -> None:
 
         # 1) Create a manager
-        self.manager = asiodnp3.DNP3Manager(1, asiodnp3.ConsoleLogger().Create())  # (concurrency_hint, handler: IlogHandler, ...)
-        # self.manager = asiodnp3.DNP3Manager(1)  # (concurrency_hint, handler: IlogHandler, ...)
+        # self.manager = asiodnp3.DNP3Manager(1, asiodnp3.ConsoleLogger().Create())  # (concurrency_hint, handler: IlogHandler, ...)
+        self.manager = asiodnp3.DNP3Manager(1)  # (concurrency_hint, handler: IlogHandler, ...)
         # self.manager.SetLogFilters(openpal.LogFilters(opendnp3.levels.NORMAL))
         logger.info("DNP3 Manager created.")
 
@@ -184,13 +203,6 @@ class DNP3Outstation:
             outstation_config              # config: OutstationStackConfig
         )
 
-    @property
-    def command_values(self) -> CommandValues:
-        """ 
-        Read latest master-commanded controls from outstation if they were changed.
-        """
-        self.command_handler.commands_updated = False
-        return self.command_handler.command_values
 
     def enable(self):
         # 5) Enable the outstation so it starts accepting connections
@@ -259,7 +271,7 @@ class DNP3Outstation:
         #   you can configure them similarly in the outstation’s database if desired.
         return outstation_config
 
-    def update_values(self, values: Values):
+    async def update_values(self, values: Values) -> None:
         """
         Update the outstation's data with plant measurements. Shoould be called periodically.
         """

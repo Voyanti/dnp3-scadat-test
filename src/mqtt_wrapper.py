@@ -2,6 +2,7 @@ import logging
 import paho.mqtt.client as mqtt
 from typing import Optional, Any, Callable
 import json
+import asyncio
 
 from random import getrandbits
 from time import time
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class MQTTClientWrapper:
-    def __init__(self, mqtt_user: str, mqtt_password: str, mqtt_base_topic: str):
+    def __init__(self, mqtt_user: str, mqtt_password: str, mqtt_base_topic: str) -> None:
         """
         Initialize the MQTT Client Wrapper
 
@@ -47,7 +48,8 @@ class MQTTClientWrapper:
         self.client.on_message = self._on_message
 
         self._values = Values()
-        self.values_updated = True
+        self.on_message_callback = None
+        self._main_loop = None
 
         # name, device_class, unit, sensor_type
         self.read_entity_info = [                                    # topics that require a state_topic only
@@ -108,6 +110,23 @@ class MQTTClientWrapper:
         else:
             logger.warning(f"Unexpected disconnection. Return code: {rc}")
 
+    def handle_message(self) -> None:
+        """ 
+        Async Calls self.on_message_callback after verifying its definition
+        """
+        
+        # Use call_soon_threadsafe to schedule the callback on the main event loop
+        if self.on_message_callback and self._main_loop:
+            logger.info(f"Readings received from MQTT, addin callback to main loop")
+            async def run_callback():
+                await self.on_message_callback(self.values)
+            
+            self._main_loop.call_soon_threadsafe(
+                lambda: asyncio.create_task(run_callback())
+            )
+        else:
+            raise NotImplementedError(f"{self}.on_message_callback not defined")
+
     def _on_message(
         self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage
     ):
@@ -124,20 +143,13 @@ class MQTTClientWrapper:
             value = message.payload.decode("utf-8")
             setattr(self._values, variable_name, value)
 
-            self.values_updated = True
+            self.handle_message()
 
             logger.debug(f"Message received on topic {message.topic}")
         except Exception as e:
             logger.error(f"Error processing message: {e}")
 
-    @property
-    def values(self):
-        """Get the mqtt internal data values (read-only)"""
-        logger.info(f"read values as updated from on_message")
-        self.values_updated = False
-        return self._values
-
-    def publish_control(self, controls: CommandValues, to_state_topic = False):
+    async def publish_control(self, controls: CommandValues, to_state_topic = False) -> None:
         """
         Publishes CommandValues to their respective MQTT command topics.
 
