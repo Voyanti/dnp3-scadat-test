@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -e
 
-python app.py
+python -u -m src.app

@@ -6,7 +6,7 @@ import asyncio
 
 from random import getrandbits
 from time import time
-from structs import Values, CommandValues
+from .structs import Values, CommandValues
 from paho.mqtt.enums import CallbackAPIVersion
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,9 @@ class MQTTClientWrapper:
 
     def handle_message(self) -> None:
         """ 
-        Async Calls self.on_message_callback after verifying its definition
+        Called inside _on_message, after a message is received, and self.values is updated
+        Async Calls self.on_message_callback after verifying its definition. 
+        Can be used to pass values from homeassistant to the outstation
         """
         
         # Use call_soon_threadsafe to schedule the callback on the main event loop
@@ -149,7 +151,7 @@ class MQTTClientWrapper:
         except Exception as e:
             logger.error(f"Error processing message: {e}")
 
-    async def publish_control(self, controls: CommandValues, to_state_topic = False) -> None:
+    async def publish_control(self, controls: CommandValues, to_state_topic_and_set_topic = False) -> None:
         """
         Publishes CommandValues to their respective MQTT command topics.
 
@@ -171,7 +173,7 @@ class MQTTClientWrapper:
                 payload=value,
                 retain=True,
             )
-            if to_state_topic:
+            if to_state_topic_and_set_topic:
                 self.client.publish(
                     topic=state_topic,
                     payload=value,
@@ -180,6 +182,7 @@ class MQTTClientWrapper:
             logger.info(f"Updated control {control_name=} on {command_topic=} with {value=}")
 
     def _build_payloads(self) -> dict:
+        logger.info("Building discovery payloads")
         device = {
             "manufacturer": "CoCT Addon",
             "model": "Virtual DNP3 Device",
@@ -217,6 +220,7 @@ class MQTTClientWrapper:
             discovery_topic = f"homeassistant/{sensor_type}/scada/{param}/config"
             payloads[discovery_topic] = discovery_payload
 
+        logger.info("Built discovery payloads")
         return payloads
 
     def publish_discovery_messages(self):

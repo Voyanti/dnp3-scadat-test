@@ -2,10 +2,10 @@ import logging
 from time import sleep
 import asyncio
 
-from outstation import DNP3Outstation
-from loader import load_config, Options
-from mqtt_wrapper import MQTTClientWrapper
-from structs import Values, CommandValues
+from .outstation import DNP3Outstation
+from .loader import load_config, Options
+from .mqtt_wrapper import MQTTClientWrapper
+from .structs import Values, CommandValues
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ async def main() -> None:
     outstation.command_handler._main_loop = loop
     mqtt_client._main_loop = loop
     # outstation.command_handler.on_command_callback = mqtt_client.publish_control
-    outstation.command_handler.on_command_callback = lambda cmd, to_state_topic=True: mqtt_client.publish_control(cmd, to_state_topic)  # DEBUG
+    outstation.command_handler.on_command_callback = lambda cmd, to_state_topic_and_set_topic=True: mqtt_client.publish_control(cmd, to_state_topic_and_set_topic)  # TODO
     mqtt_client.on_message_callback = outstation.update_values
 
     logger.info("Entering main run loop. Press Ctrl+C to exit.")
@@ -73,10 +73,13 @@ async def main() -> None:
     try:
         outstation.enable()
         mqtt_client.start_loop()
-        logger.info(f"sleep before main loop")
+        logger.info(f"sleep")
         sleep(3)
-
+        logger.info(f"initialise values")
         await outstation.update_values(mqtt_client._values)
+        outstation.update_commands()
+        
+        logger.info(f"running")
 
         while True:
             await asyncio.sleep(1)

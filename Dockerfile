@@ -50,7 +50,7 @@ WORKDIR /${WORK_DIR}
 # RUN pip3 install dnp3-python
 # dnp3-python==0.2.3b2
 # Copy code
-COPY src/* ./
+COPY src/  ./src/
 COPY run.sh  ./
 
 
