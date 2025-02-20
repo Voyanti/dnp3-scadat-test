@@ -8,7 +8,7 @@ class Values:
     # W/Var
     plant_ac_power_generated: float = 1000                 # by Embedded Generation (EG) PLant
     grid_reactive_power: float = -50                       # at point of connection (POC) to CCT
-    grid_exported_power: float = 300           # at POC
+    grid_exported_power: float = -300           # at POC
 
     # %
     production_constraint_setpoint: int = 0       # 0 - master output index
