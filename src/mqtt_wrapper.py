@@ -1,19 +1,25 @@
+from dataclasses import dataclass
 import logging
 import paho.mqtt.client as mqtt
-from typing import Optional, Any, Callable
+from typing import Literal, Optional, Any, Callable, TypedDict
 import json
 import asyncio
 
 from random import getrandbits
 from time import time
-from .structs import Values, CommandValues
-from paho.mqtt.enums import CallbackAPIVersion
+
+from .mqtt_entities import DiscoveryPayload, MQTTBinarySensor, MQTTBoolValue, MQTTFloatValue, MQTTSensor, MQTTValues
+
+from .ha_enums import HABinarySensorDeviceClass, HASensorDeviceClass, HASensorType
+from .structs import CommandValues
 
 logger = logging.getLogger(__name__)
 
 
 class MQTTClientWrapper:
-    def __init__(self, mqtt_user: str, mqtt_password: str, mqtt_base_topic: str) -> None:
+    def __init__(
+        self, mqtt_user: str, mqtt_password: str, mqtt_base_topic: str, values: MQTTValues
+    ) -> None:
         """
         Initialize the MQTT Client Wrapper
 
@@ -33,9 +39,9 @@ class MQTTClientWrapper:
         uuid = generate_uuid()
         # Create MQTT client
         self.client = mqtt.Client(
-            callback_api_version=CallbackAPIVersion.VERSION2,
-            client_id=f"mqtt-outstation-{uuid}", 
-            protocol=mqtt.MQTTv5  # API version 2
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            client_id=f"mqtt-outstation-{uuid}",
+            protocol=mqtt.MQTTv5,  # API version 2
         )
 
         self.client.username_pw_set(mqtt_user, mqtt_password)
@@ -47,26 +53,9 @@ class MQTTClientWrapper:
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
 
-        self._values = Values()
+        self._values = values
         self.on_message_callback = None
-        self._main_loop = None
-
-        # name, device_class, unit, sensor_type
-        self.read_entity_info = [                                    # topics that require a state_topic only
-            {"name": "plant_ac_power_generated", "device_class": "power", "unit_of_measurement": "W", "sensor_type": "sensor"},
-            {"name": "grid_reactive_power", "device_class": "power", "unit_of_measurement": "Var", "sensor_type": "sensor"},
-            {"name": "grid_exported_power", "device_class": "power", "unit_of_measurement": "W", "sensor_type": "sensor"},
-        ]
-
-        self.read_write_entity_info = [                              # topics that require a state_topic and command_topic
-            {"name": "production_constraint_setpoint", "device_class": "battery", "unit_of_measurement": "%", "sensor_type": "number"},
-            {"name": "gradient_ramp_up", "device_class": "battery", "unit_of_measurement": "%", "sensor_type": "number"},
-            {"name": "gradient_ramp_down", "device_class": "battery", "unit_of_measurement": "%", "sensor_type": "number"},
-            {"name": "flag_production_constraint", "device_class": "running", "unit_of_measurement": "", "sensor_type": "binary_sensor"},
-            {"name": "flag_gradient_constraint", "device_class": "running", "unit_of_measurement": "", "sensor_type": "binary_sensor"},
-        ]
-
-        self.discovery_payloads = self._build_payloads()
+        self._main_loop: Optional[asyncio.AbstractEventLoop] = None
 
     def _on_connect(
         self,
@@ -111,18 +100,19 @@ class MQTTClientWrapper:
             logger.warning(f"Unexpected disconnection. Return code: {rc}")
 
     def handle_message(self) -> None:
-        """ 
+        """
         Called inside _on_message, after a message is received, and self.values is updated
-        Async Calls self.on_message_callback after verifying its definition. 
+        Async Calls self.on_message_callback after verifying its definition.
         Can be used to pass values from homeassistant to the outstation
         """
-        
+
         # Use call_soon_threadsafe to schedule the callback on the main event loop
         if self.on_message_callback and self._main_loop:
             logger.info(f"Readings received from MQTT, addin callback to main loop")
+
             async def run_callback():
-                await self.on_message_callback(self.values)
-            
+                await self.on_message_callback(self._values)
+
             self._main_loop.call_soon_threadsafe(
                 lambda: asyncio.create_task(run_callback())
             )
@@ -141,96 +131,67 @@ class MQTTClientWrapper:
         """
         try:
             # TODO assume sensor topic: f"{self.mqtt_base_topic}/production_constraint_setpoint/state"
-            variable_name = message.topic.split("/")[-2]
+            topic = message.topic
             value = message.payload.decode("utf-8")
-            setattr(self._values, variable_name, value)
+            
+            found_match: bool = False
+            for val in self._values.values():
+                if topic == val.source_topic: # type: ignore
+                    found_match = True
+                    if isinstance(val, MQTTFloatValue):
+                        val.value = float(value)
+                    elif isinstance(val, MQTTBoolValue):
+                        val.value = bool(value)
+                    else:
+                        raise TypeError(f"unsuported type {type(val)} defined in MQTTWrapper _values")
+                    logger.info(f"{value=} received from {topic=}")
+
+            if not found_match:
+                logger.error(f"MQTTWrapper values has no key {topic}")
+                raise ValueError(f"MQTTWrapper values has no key {topic}")
+            # setattr(self._values, variable_name, value)
 
             self.handle_message()
 
-            logger.debug(f"Message received on topic {message.topic}")
+            logger.debug(f"Message processed on topic {message.topic}")
         except Exception as e:
             logger.error(f"Error processing message: {e}")
 
-    async def publish_control(self, controls: CommandValues, to_state_topic_and_set_topic = False) -> None:
+
+    async def publish_control(
+        self, controls: CommandValues
+    ) -> None:
         """
         Publishes CommandValues to their respective MQTT command topics.
 
         :param controls: The commanded values relayed from outstation.
-        :parama to_state_topic (Optional): publish to MQTT state topics, in addition to set topics. For testing/ verification purposes. 
+        :parama to_state_topic (Optional): publish to MQTT state topics, in addition to set topics. For testing/ verification purposes.
         """
-        for entity in self.read_write_entity_info:
-            control_name = entity['name']
-            command_topic = f"{self.base_topic}/{control_name}/set"
-            state_topic = f"{self.base_topic}/{control_name}/state"
-            value = getattr(controls, control_name)
 
-            # ha accepts on/ off string as payload for running binary switch types
-            if isinstance(value, bool): 
-                value = self.bool_to_runningstate(value)
+        # publish setpoints from dnp outstation directly to fake CoCT device entities for debug
+        for name, value in controls.asdict().items():
+            # command_topic = f"{self.base_topic}/{control_name}/set"
+            state_topic = f"{self.base_topic}/{name}/state"
 
             self.client.publish(
-                topic=command_topic,
+                topic=state_topic,
                 payload=value,
                 retain=True,
             )
-            if to_state_topic_and_set_topic:
-                self.client.publish(
-                    topic=state_topic,
-                    payload=value,
-                    retain=True,
-                )
-            logger.info(f"Updated control {control_name=} on {command_topic=} with {value=}")
-
-    def _build_payloads(self) -> dict:
-        logger.info("Building discovery payloads")
-        device = {
-            "manufacturer": "CoCT Addon",
-            "model": "Virtual DNP3 Device",
-            "identifiers": [f"CoCT_DNP3_virtual"],
-            "name": f"CoCT_DNP3_virtual"
-        }
-
-        param_names_units_class = self.read_entity_info + self.read_write_entity_info
-
-        payloads = {}
-        for entity in param_names_units_class:
-            param, device_class, unit, sensor_type = entity["name"], entity["device_class"], entity['unit_of_measurement'], entity["sensor_type"]
-            state_topic = f"{self.base_topic}/{param}/state"
-
-            discovery_payload = {
-                "name": param,
-                "unique_id": f"CoCT_scada_{param}",
-                "state_topic": state_topic,
-                "availability_topic": self.availability_topic,
-                "device": device,
-                "device_class": device_class,
-                "unit_of_measurement": unit
-            }
-
-            if sensor_type == "number" or sensor_type == "binary_sensor":
-                discovery_payload["command_topic"] = f"{self.base_topic}/{param}/set"
-
-                if sensor_type == "number":
-                    discovery_payload["min"] = "0"
-                    discovery_payload["max"] = "100"
-                    discovery_payload["step"] = "1"
-                elif sensor_type == "binary_sensor":
-                    discovery_payload.pop("unit_of_measurement")
-
-            discovery_topic = f"homeassistant/{sensor_type}/scada/{param}/config"
-            payloads[discovery_topic] = discovery_payload
-
-        logger.info("Built discovery payloads")
-        return payloads
+            logger.info(
+                f"Updated control {name=} on {state_topic=} with {value=}"
+            )
 
     def publish_discovery_messages(self):
         logger.info(f"Publishing discovery topics.")
 
-        for discovery_topic, discovery_payload in self.discovery_payloads.items():
+        for value in self._values.values():
             self.client.publish(
-                discovery_topic, json.dumps(discovery_payload), retain=True
+                topic=value.discovery_topic,
+                payload=json.dumps(value.discovery_payload),
+                retain=True,
             )
-            logger.info(f"Published discovery to {discovery_topic}")
+            logger.info(f"Published discovery to {value.discovery_topic}")
 
         self.client.publish(self.availability_topic, "online", retain=True)
         logger.info(f"Published availability online to {self.availability_topic}")
@@ -239,11 +200,15 @@ class MQTTClientWrapper:
         """
         Subscribe to all state topics (set by inverter/ meter addons).
         """
-        for discovery_topic, discovery_payload in self.discovery_payloads.items():
-            sensor_type = discovery_topic.split("/")[1]
-            if sensor_type == "sensor":
-                self.client.subscribe(discovery_payload["state_topic"])
-                logger.info(f"Subscribed to {discovery_payload['state_topic']}")
+        logger.info(f"Subscribing to MQTT topics.")
+
+        for value in self._values.values():
+            if not value.source_topic:
+                continue
+
+            self.client.subscribe(topic=value.source_topic)
+            logger.info(f"Subscribed to {value.source_topic} at discovery {value.discovery_topic}")
+        # additional subscriptions:
 
     def connect(
         self,
@@ -285,17 +250,15 @@ class MQTTClientWrapper:
         self.client.loop_stop()
         logger.info("MQTT client loop stopped")
 
-    @staticmethod
-    def bool_to_runningstate(b: bool) -> str:
-        if b: return "on"
-        return "off"
-
 
 if __name__ == "__main__":
-    client = MQTTClientWrapper("", "", "scada")
-    print(client._build_payloads())
+    pass
+    # client = MQTTClientWrapper("", "", "scada")
+    # print(client._build_payloads())
 
-    # test to ensure topic names and definition of structs.Values() lines up
-    entity_names = [entity["name"] for entity in client.read_entity_info] + [entity["name"] for entity in client.read_write_entity_info]
-    for name in entity_names:
-        print(getattr(Values(), name))
+    # # test to ensure topic names and definition of structs.Values() lines up
+    # entity_names = [entity["name"] for entity in client.read_entity_info] + [
+    #     entity["name"] for entity in client.read_write_entity_info
+    # ]
+    # for name in entity_names:
+    #     print(getattr(Values(), name))

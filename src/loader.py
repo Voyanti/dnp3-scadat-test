@@ -20,6 +20,10 @@ class Options:
     mqtt_password: str
     mqtt_base_topic: str
 
+    plant_ac_generated_topic: str
+    grid_reactive_topic: str
+    grid_export_topic: str
+
 
 DEFAULT_OPTIONS = \
     Options(server="vpn.example.com",
@@ -30,7 +34,10 @@ DEFAULT_OPTIONS = \
             mqtt_port = 1884,
             mqtt_user="mqtt-user",
             mqtt_password="mqtt-user",
-            mqtt_base_topic="scada")
+            mqtt_base_topic="scada",
+            plant_ac_generated_topic = "test/plant/state",
+            grid_reactive_topic = "test/reactive/state",
+            grid_export_topic = "test/export/state")
 
 def load_config(config_path = '/data/options.json') -> Options:
     """

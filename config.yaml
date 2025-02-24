@@ -1,5 +1,5 @@
 name: "CCT SCADA"
-version: "0.0.31"
+version: "0.0.32"
 slug: "cct_dp3_scada"
 description: "Home Assistant add-on CoCT DNP3"
 url: "https://github.com/Voyanti/dnp3-scadat-test"
@@ -22,6 +22,9 @@ options:
   mqtt_user: mqtt-user
   mqtt_password: mqtt-user
   mqtt_base_topic: "scada"
+  plant_ac_generated_topic: "test/plant"
+  grid_reactive_topic: "test/reactive"
+  grid_export_topic: "test/export"
 
 schema:
   server: str
@@ -33,3 +36,6 @@ schema:
   mqtt_user: str
   mqtt_password: password
   mqtt_base_topic: str
+  plant_ac_generated_topic: str
+  grid_reactive_topic: str
+  grid_export_topic: str

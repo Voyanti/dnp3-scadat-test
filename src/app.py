@@ -2,44 +2,57 @@ import logging
 from time import sleep
 import asyncio
 
+from .ha_enums import HABinarySensorDeviceClass, HASensorDeviceClass
+from .mqtt_entities import MQTTBinarySensor, MQTTBoolValue, MQTTFloatValue, MQTTIntValue, MQTTSensor, MQTTValues
+
 from .outstation import DNP3Outstation
 from .loader import load_config, Options
 from .mqtt_wrapper import MQTTClientWrapper
-from .structs import Values, CommandValues
 
 logger = logging.getLogger(__name__)
 
 
-class SpoofValues(Values):
-    max_capacity = 100e3
-
-    def update_controls(self, controls: CommandValues):
-        """spoof setting inverter/controller by homeassistant.
-
-        copies controls to values."""
-        self.production_constraint_setpoint = controls.production_constraint_setpoint
-        self.gradient_ramp_up = controls.gradient_ramp_up
-        self.gradient_ramp_down = controls.gradient_ramp_down
-        self.flag_gradient_constraint = controls.flag_gradient_constraint
-        self.flag_production_constraint = controls.flag_production_constraint
-
-    @property
-    def values(self):
-        """return fake changing values, with controls applied"""
-        # spoof changes
-        self.plant_ac_power_generated = (
-            self.max_capacity * self.production_constraint_setpoint
+def initMQTTValues(OPTS: Options):
+    values = MQTTValues(    
+        plant_ac_power_generated = MQTTFloatValue(
+            MQTTSensor("plant_ac_power_generated", HASensorDeviceClass.POWER, "W")),
+        grid_reactive_power = MQTTFloatValue(
+                    MQTTSensor("grid_reactive_power", HASensorDeviceClass.REACTIVE_POWER, "Var")),
+        grid_exported_power = MQTTFloatValue(
+                    MQTTSensor("grid_exported_power", HASensorDeviceClass.POWER, "W")),
+        production_constraint_setpoint= MQTTIntValue(  # 0 - master output index
+                    MQTTSensor("production_constraint_setpoint", HASensorDeviceClass.BATTERY, "%")), 
+        gradient_ramp_up = MQTTIntValue(  # 1
+                    MQTTSensor("gradient_ramp_up", HASensorDeviceClass.BATTERY, "%")),
+        gradient_ramp_down = MQTTIntValue(  # 2
+                    MQTTSensor("gradient_ramp_down", HASensorDeviceClass.BATTERY, "%")),
+        flag_dont_production_constraint = MQTTBoolValue(
+                    MQTTBinarySensor("flag_dont_production_constraint",  HABinarySensorDeviceClass.NONE), True),
+        flag_dont_gradient_constraint = MQTTBoolValue(
+                    MQTTBinarySensor("flag_dont_gradient_constraint",  HABinarySensorDeviceClass.NONE), True)
         )
-        self.grid_reactive_power += 2
-        self.grid_exported_power += 3
+    
+    # build discovery payloads
+    for val in values.values():
+        val.build_payload(OPTS.mqtt_base_topic)     # type:ignore
 
-        return self
+    # initialise source MQTT topics
+    values["flag_dont_gradient_constraint"].source_topic = values["flag_dont_gradient_constraint"].discovery_payload["command_topic"]
+    values["flag_dont_production_constraint"].source_topic = values["flag_dont_production_constraint"].discovery_payload["command_topic"]
+    # from_topic (mqtt source topic) is the command topic for switches
+
+    # # analog values read from inverter/logger
+    values["plant_ac_power_generated"].source_topic = OPTS.plant_ac_generated_topic
+    values["grid_reactive_power"].source_topic = OPTS.grid_reactive_topic
+    values["grid_exported_power"].source_topic = OPTS.grid_export_topic
+
+    return values
 
 
 def setup_mqtt(OPTS: Options) -> MQTTClientWrapper:
     # setup mqtt client for reading latest values from homeassistant
     mqtt_client = MQTTClientWrapper(
-        OPTS.mqtt_user, OPTS.mqtt_password, OPTS.mqtt_base_topic
+        OPTS.mqtt_user, OPTS.mqtt_password, OPTS.mqtt_base_topic, initMQTTValues(OPTS)
     )
     mqtt_client.connect(OPTS.mqtt_host, OPTS.mqtt_port)
     mqtt_client.publish_discovery_messages()
@@ -49,6 +62,7 @@ def setup_mqtt(OPTS: Options) -> MQTTClientWrapper:
 
 
 async def main() -> None:
+    # load home assistant add-on config
     OPTS: Options = load_config()  # homeassistant config.yaml -> Options
 
     outstation = DNP3Outstation(  # Configure Outstation
@@ -65,7 +79,7 @@ async def main() -> None:
     outstation.command_handler._main_loop = loop
     mqtt_client._main_loop = loop
     # outstation.command_handler.on_command_callback = mqtt_client.publish_control
-    outstation.command_handler.on_command_callback = lambda cmd, to_state_topic_and_set_topic=True: mqtt_client.publish_control(cmd, to_state_topic_and_set_topic)  # TODO
+    outstation.command_handler.on_command_callback = mqtt_client.publish_control
     mqtt_client.on_message_callback = outstation.update_values
 
     logger.info("Entering main run loop. Press Ctrl+C to exit.")
@@ -78,7 +92,7 @@ async def main() -> None:
         logger.info(f"initialise values")
         await outstation.update_values(mqtt_client._values)
         outstation.update_commands()
-        
+
         logger.info(f"running")
 
         while True:

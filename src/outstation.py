@@ -5,7 +5,11 @@ from datetime import datetime
 import asyncio
 
 from enum import IntEnum
-from .structs import Values, CommandValues
+from typing import Optional
+
+from .mqtt_entities import MQTTValues
+from .structs import CommandValues
+
 
 from pydnp3 import opendnp3, openpal, asiopal, asiodnp3
 
@@ -40,7 +44,7 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         super(MyCommandHandler, self).__init__()
 
         self.command_values = CommandValues(
-            production_constraint_setpoint=0,
+            production_constraint_setpoint=100,
             gradient_ramp_up=100,
             gradient_ramp_down=100
         )
@@ -48,7 +52,7 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         # Define a callback that takes a CommandValues object as argument, for passing commands from outstation 
         self.on_command_callback = None
         self.outstation_command_updater_callback = None
-        self._main_loop = None
+        self._main_loop: Optional[asyncio.AbstractEventLoop] = None
 
     def Start(self):
         """
@@ -70,7 +74,7 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         if self.on_command_callback and self._main_loop:
             logger.info(f"Commands received from master, adding callback to event loop")
             async def run_callback():
-                await self.on_command_callback(self.command_values, to_state_topic_and_set_topic=True)
+                await self.on_command_callback(self.command_values)
             
             self._main_loop.call_soon_threadsafe(
                 lambda: asyncio.create_task(run_callback())
@@ -278,7 +282,7 @@ class DNP3Outstation:
         #   you can configure them similarly in the outstation’s database if desired.
         return outstation_config
 
-    async def update_values(self, values: Values) -> None:
+    async def update_values(self, values: MQTTValues) -> None:
         """
         Update the outstation's data with plant measurements.
         Used as a callback in plant-measurement-receiving-class (MQTTWrapper)
@@ -290,15 +294,14 @@ class DNP3Outstation:
         builder = asiodnp3.UpdateBuilder()
 
         # 2) Add updates for each point:
-
         # Binary points (index=0 => Production Constraint Mode, index=1 => Power Gradient Constraint Mode)
         builder.Update(                 # measurement, index: opendnp3.Binary | opendnp3.Analog, index: ?, mode: opendnp3.EventMode (Detect, Force, Suppress)
-            opendnp3.Binary(values.flag_production_constraint), 
+            opendnp3.Binary(values["flag_dont_gradient_constraint"].value), 
             BinaryAddressIndex.b_production_constraint, 
             opendnp3.EventMode.Detect   # will only generate an event if a change actually occured from this update. use force to create an event for each update, suppress for no events
         )
         builder.Update(
-            opendnp3.Binary(values.flag_gradient_constraint), 
+            opendnp3.Binary(values["flag_dont_gradient_constraint"].value), 
             BinaryAddressIndex.b_power_gradient_constraint, 
             opendnp3.EventMode.Detect
         )
@@ -306,45 +309,25 @@ class DNP3Outstation:
         # 32-bit analogs: indexes [0..2]
         # Example values for demonstration:
         builder.Update(
-            opendnp3.Analog(values.plant_ac_power_generated), 
+            opendnp3.Analog(values["plant_ac_power_generated"].value), 
             AnalogAddressIndex.a_total_power, 
             opendnp3.EventMode.Detect
         )  # Watts
         builder.Update(
-            opendnp3.Analog(values.grid_reactive_power), 
+            opendnp3.Analog(values["grid_reactive_power"].value), 
             AnalogAddressIndex.a_reactive_power, 
             opendnp3.EventMode.Detect
         )    # VARs
         builder.Update(
-            opendnp3.Analog(values.grid_exported_power), 
+            opendnp3.Analog(values["grid_exported_power"].value), 
             AnalogAddressIndex.a_exported_or_imported_power, 
             opendnp3.EventMode.Detect
         )    # Export/Import Power
-
-        # 16-bit analogs: indexes [3..5]
-        # Echo the setpoints from the command handler
-        # cmd_handler = self.command_handler
 
         # # verify that values read, match commands set earlier
         # # assert cmd_handler.command_values.production_constraint_setpoint == values.production_constraint_setpoint
         # # assert cmd_handler.command_values.gradient_ramp_up == values.gradient_ramp_up
         # # assert cmd_handler.command_values.gradient_ramp_down == values.gradient_ramp_down
-
-        # builder.Update(
-        #     opendnp3.Analog(cmd_handler.command_values.production_constraint_setpoint), 
-        #     AnalogAddressIndex.a_production_constraint_setpoint, 
-        #     opendnp3.EventMode.Detect
-        # )
-        # builder.Update(
-        #     opendnp3.Analog(cmd_handler.command_values.gradient_ramp_up), 
-        #     AnalogAddressIndex.a_power_gradient_constraint_ramp_up, 
-        #     opendnp3.EventMode.Detect
-        # )
-        # builder.Update(
-        #     opendnp3.Analog(cmd_handler.command_values.gradient_ramp_down), 
-        #     AnalogAddressIndex.a_power_gradient_constraint_ramp_down, 
-        #     opendnp3.EventMode.Detect
-        # )
 
         # 3) Apply the changes to the outstation
         self.outstation.Apply(builder.Build())
@@ -361,36 +344,6 @@ class DNP3Outstation:
         builder = asiodnp3.UpdateBuilder()
 
         # 2) Add updates for each point:
-
-        # Binary points (index=0 => Production Constraint Mode, index=1 => Power Gradient Constraint Mode)
-        # builder.Update(                 # measurement, index: opendnp3.Binary | opendnp3.Analog, index: ?, mode: opendnp3.EventMode (Detect, Force, Suppress)
-        #     opendnp3.Binary(values.flag_production_constraint), 
-        #     BinaryAddressIndex.b_production_constraint, 
-        #     opendnp3.EventMode.Detect   # will only generate an event if a change actually occured from this update. use force to create an event for each update, suppress for no events
-        # )
-        # builder.Update(
-        #     opendnp3.Binary(values.flag_gradient_constraint), 
-        #     BinaryAddressIndex.b_power_gradient_constraint, 
-        #     opendnp3.EventMode.Detect
-        # )
-
-        # # 32-bit analogs: indexes [0..2]
-        # # Example values for demonstration:
-        # builder.Update(
-        #     opendnp3.Analog(values.plant_ac_power_generated), 
-        #     AnalogAddressIndex.a_total_power, 
-        #     opendnp3.EventMode.Detect
-        # )  # Watts
-        # builder.Update(
-        #     opendnp3.Analog(values.grid_reactive_power), 
-        #     AnalogAddressIndex.a_reactive_power, 
-        #     opendnp3.EventMode.Detect
-        # )    # VARs
-        # builder.Update(
-        #     opendnp3.Analog(values.grid_exported_power), 
-        #     AnalogAddressIndex.a_exported_or_imported_power, 
-        #     opendnp3.EventMode.Detect
-        # )    # Export/Import Power
 
         # 16-bit analogs: indexes [3..5]
         # Echo the setpoints from the command handler
