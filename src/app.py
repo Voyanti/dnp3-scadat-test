@@ -100,6 +100,7 @@ async def main() -> None:
         # initialise outstation values and commands - to ensure validity flag read by dnp server is not RESTART
         await outstation.update_values(mqtt_client._values)
         outstation.update_commands()
+        outstation.command_handler.handle_commands()
 
         logger.info(f"running") # operate using callbacks
 
