@@ -1,5 +1,5 @@
 name: "CCT SCADA"
-version: "0.0.35"
+version: "0.0.36"
 slug: "cct_dp3_scada"
 description: "Home Assistant add-on CoCT DNP3"
 url: "https://github.com/Voyanti/dnp3-scadat-test"
@@ -23,8 +23,11 @@ options:
   mqtt_password: mqtt-user
   mqtt_base_topic: "scada"
   plant_ac_generated_topic: "modbus/SungrowLogger/total_active_power/state"
+  plant_ac_generated_watts_per_unit: 1
   grid_reactive_topic: "modbus/SungrowMeter/reactive_power/state"
+  plant_ac_generated_var_per_unit: 1000
   grid_export_topic: "modbus/SungrowMeter/active_power/state"
+  plant_export_watts_per_unit: 1000
   # plant_active_power_set_topic: 
   # plant_ramp_up_set_topic: 
   # plant_ramp_down_set_topic: 
@@ -41,8 +44,11 @@ schema:
   mqtt_password: password
   mqtt_base_topic: str
   plant_ac_generated_topic: str
+  plant_ac_generated_watts_per_unit: float
   grid_reactive_topic: str
+  plant_ac_generated_var_per_unit: float
   grid_export_topic: str
+  plant_export_watts_per_unit: float
   # plant_active_power_set_topic: str
   # plant_ramp_up_set_topic: str
   # plant_ramp_down_set_topic: str

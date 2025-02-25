@@ -9,35 +9,31 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Options:
-    server: str
-    outstation_addr: int        # DNP3 address e.g. 101
-    listen_ip: str              # binding ip on device for DNP3 connections e. g. 0.0.0.0/localhost
-    event_buffer_size: int
+    server: str = "vpn.example.com"
+    outstation_addr: int = 101        # DNP3 address e.g. 101
+    listen_ip: str = "0.0.0.0"              # binding ip on device for DNP3 connections e. g. 0.0.0.0/localhost
+    event_buffer_size: int = 20
 
-    mqtt_host: str
-    mqtt_port: int
-    mqtt_user: str
-    mqtt_password: str
-    mqtt_base_topic: str
+    mqtt_host: str = "localhost"
+    mqtt_port: int = 1884
+    mqtt_user: str = "mqtt-user"
+    mqtt_password: str = "mqtt-user"
+    mqtt_base_topic: str = "scada"
 
-    plant_ac_generated_topic: str
-    grid_reactive_topic: str
-    grid_export_topic: str
+    plant_ac_generated_topic: str = "test/plant/state"
+    plant_ac_generated_watts_per_unit: float = 1000
+    grid_reactive_topic: str = "test/reactive/state"
+    plant_ac_generated_var_per_unit: float = 1000
+    grid_export_topic: str = "test/export/state"
+    plant_export_watts_per_unit: float = 1000
+
+    # plant_active_power_set_topic: str
+    # plant_ramp_up_set_topic: str
+    # plant_ramp_down_set_topic: str
+    max_total_nominal_active_power_kwh: float = 125
 
 
-DEFAULT_OPTIONS = \
-    Options(server="vpn.example.com",
-            outstation_addr=101,
-            listen_ip="0.0.0.0",
-            event_buffer_size=20,
-            mqtt_host="localhost",
-            mqtt_port = 1884,
-            mqtt_user="mqtt-user",
-            mqtt_password="mqtt-user",
-            mqtt_base_topic="scada",
-            plant_ac_generated_topic = "test/plant/state",
-            grid_reactive_topic = "test/reactive/state",
-            grid_export_topic = "test/export/state")
+DEFAULT_OPTIONS = Options()
 
 def load_config(config_path = '/data/options.json') -> Options:
     """

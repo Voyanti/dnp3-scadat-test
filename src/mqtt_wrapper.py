@@ -145,7 +145,7 @@ class MQTTClientWrapper:
                 if isinstance(val, MQTTFloatValue):
                     val.value = float(new_value)
                 elif isinstance(val, MQTTBoolValue):
-                    assert(new_value=="on" or new_value=="off")
+                    assert(new_value=="ON" or new_value=="OFF")
                     val.value = new_value
                 else:
                     raise TypeError(f"unsuported type {type(val)} defined in MQTTWrapper _values")
@@ -180,6 +180,7 @@ class MQTTClientWrapper:
             logger.debug(f"Message processed on topic {message.topic}")
         except Exception as e:
             logger.error(f"Error processing message: {e}")
+            raise e
 
 
     async def publish_control(

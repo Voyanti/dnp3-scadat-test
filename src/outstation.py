@@ -10,8 +10,8 @@ from typing import Callable, Optional
 from .mqtt_entities import MQTTValues
 from .structs import CommandValues
 
-
-from pydnp3 import opendnp3, openpal, asiopal, asiodnp3
+# no stubs or definitions available for deprecated wrapper library
+from pydnp3 import opendnp3, openpal, asiopal, asiodnp3 # type: ignore
 
 # ------------------------------------------------------
 # Setup basic logging

@@ -7,16 +7,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class DiscoveryPayload(TypedDict, total=False):
+class DiscoveryPayloadReq(TypedDict, total=True):
     # not all are required attributes e.g. unit
     name: str
     unique_id: str
     state_topic: str
     availability_topic: str
     device: dict
+
+class DiscoveryPayload(DiscoveryPayloadReq, total=False):
     device_class: str
     unit_of_measurement: str
     command_topic: str
+    payload_on: str
+    payload_off: str
 
 
 class MQTTEntityBase:
@@ -49,12 +53,12 @@ class MQTTSensor(MQTTEntityBase):
         self, device_payload: dict, base_topic: str
     ) -> DiscoveryPayload:
         base_payload = super().to_discovery_payload(device_payload, base_topic)
-        add_dict: DiscoveryPayload = {
+        add_dict = {
             "device_class": self.device_class.value,
             "unit_of_measurement": self.unit,
         }
         payload = base_payload.copy()
-        payload.update(add_dict)
+        payload.update(add_dict) # type: ignore
 
         return payload
 
@@ -71,12 +75,14 @@ class MQTTBinarySensor(MQTTEntityBase):
         command_topic = f"{base_topic}/{self.name}/set"
 
         base_payload = super().to_discovery_payload(device_payload, base_topic)
-        add_dict: DiscoveryPayload = {
-            "device_class": self.device_class.value,
+        add_dict = {
+            # "device_class": self.device_class.value,
             "command_topic": command_topic,
+            "payload_on": "ON",
+            "payload_off": "OFF",
         }
         payload = base_payload.copy()
-        payload.update(add_dict)
+        payload.update(add_dict) # type: ignore
 
         return payload
 
@@ -142,12 +148,12 @@ class MQTTBoolValue(MQTTBaseValue):
     @property
     def value(self) -> str:
         if self._value:
-            return 'on'
-        return 'off'
+            return "ON"
+        return "OFF"
     
     @value.setter
-    def value(self, v: Literal['on', 'off']) -> None:
-        if v == 'on':
+    def value(self, v: Literal["ON", "OFF"]) -> None:
+        if v == "ON":
             self._value = True
         else:
             self._value = False
