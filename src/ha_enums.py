@@ -104,3 +104,4 @@ class HABinarySensorDeviceClass(Enum):
 class HASensorType(Enum):
     SENSOR = "sensor"
     BINARY_SENSOR = "binary_sensor"
+    SWITCH = "switch"

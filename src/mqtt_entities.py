@@ -67,7 +67,7 @@ class MQTTSensor(MQTTEntityBase):
 class MQTTBinarySensor(MQTTEntityBase):
     def __init__(self, name: str, device_class: HABinarySensorDeviceClass):
         super().__init__(name)
-        self.sensor_type = HASensorType.BINARY_SENSOR
+        self.sensor_type = HASensorType.SWITCH
         self.device_class = device_class
 
     def to_discovery_payload(
@@ -79,6 +79,7 @@ class MQTTBinarySensor(MQTTEntityBase):
         add_dict = {
             # "device_class": self.device_class.value,
             "command_topic": command_topic,
+            "enabled_by_default": "true",
             "payload_on": "ON",
             "payload_off": "OFF",
         }
@@ -151,7 +152,8 @@ class MQTTFloatValue(MQTTBaseValue):
 
 
 class MQTTBoolValue(MQTTBaseValue):
-    def __init__(self, entity: MQTTBinarySensor, value: bool = False) -> None:
+    def __init__(self, entity: MQTTBinarySensor, value: bool = True) -> None:
+        # TODO init value is not utilised 
         super().__init__(entity)
         self._value = value
 
