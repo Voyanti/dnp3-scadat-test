@@ -5,7 +5,7 @@ from datetime import datetime
 import asyncio
 
 from enum import IntEnum
-from typing import Optional
+from typing import Callable, Optional
 
 from .mqtt_entities import MQTTValues
 from .structs import CommandValues
@@ -50,8 +50,8 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         )
 
         # Define a callback that takes a CommandValues object as argument, for passing commands from outstation 
-        self.on_command_callback = None
-        self.outstation_command_updater_callback = None
+        self.on_command_callback: Optional[Callable] = None
+        self.outstation_command_updater_callback: Optional[Callable] = None
         self._main_loop: Optional[asyncio.AbstractEventLoop] = None
 
     def Start(self):
@@ -147,7 +147,7 @@ class MyOutstationApplication(opendnp3.IOutstationApplication):
     #     logger.info(f"OutstationApplication - state changed: {(state.__getstate__())}")
 
     def SupportsWriteAbsoluteTime(self):
-        return True
+        return False
 
     def WriteAbsoluteTime(self, ms_since_epoch):
         """
@@ -296,12 +296,12 @@ class DNP3Outstation:
         # 2) Add updates for each point:
         # Binary points (index=0 => Production Constraint Mode, index=1 => Power Gradient Constraint Mode)
         builder.Update(                 # measurement, index: opendnp3.Binary | opendnp3.Analog, index: ?, mode: opendnp3.EventMode (Detect, Force, Suppress)
-            opendnp3.Binary(values["flag_dont_gradient_constraint"].value), 
+            opendnp3.Binary(values["flag_dont_production_constraint"]._value), 
             BinaryAddressIndex.b_production_constraint, 
             opendnp3.EventMode.Detect   # will only generate an event if a change actually occured from this update. use force to create an event for each update, suppress for no events
         )
         builder.Update(
-            opendnp3.Binary(values["flag_dont_gradient_constraint"].value), 
+            opendnp3.Binary(values["flag_dont_gradient_constraint"]._value), 
             BinaryAddressIndex.b_power_gradient_constraint, 
             opendnp3.EventMode.Detect
         )
@@ -337,22 +337,11 @@ class DNP3Outstation:
         Update the outstation's data with plant measurements.
         Used as a callback in plant-measurement-receiving-class (MQTTWrapper)
         """
-
-        # make sure to update homeassistant with command handler controls bedore updating the values read
-
-        # 1) Create an UpdateBuilder
         builder = asiodnp3.UpdateBuilder()
-
-        # 2) Add updates for each point:
 
         # 16-bit analogs: indexes [3..5]
         # Echo the setpoints from the command handler
         cmd_handler = self.command_handler
-
-        # verify that values read, match commands set earlier
-        # assert cmd_handler.command_values.production_constraint_setpoint == values.production_constraint_setpoint
-        # assert cmd_handler.command_values.gradient_ramp_up == values.gradient_ramp_up
-        # assert cmd_handler.command_values.gradient_ramp_down == values.gradient_ramp_down
 
         builder.Update(
             opendnp3.Analog(cmd_handler.command_values.production_constraint_setpoint), 

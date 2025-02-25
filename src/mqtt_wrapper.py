@@ -8,7 +8,7 @@ import asyncio
 from random import getrandbits
 from time import time
 
-from .mqtt_entities import DiscoveryPayload, MQTTBinarySensor, MQTTBoolValue, MQTTFloatValue, MQTTSensor, MQTTValues
+from .mqtt_entities import DiscoveryPayload, MQTTBinarySensor, MQTTBoolValue, MQTTFloatValue, MQTTIntValue, MQTTSensor, MQTTValues
 
 from .ha_enums import HABinarySensorDeviceClass, HASensorDeviceClass, HASensorType
 from .structs import CommandValues
@@ -54,7 +54,7 @@ class MQTTClientWrapper:
         self.client.on_message = self._on_message
 
         self._values = values
-        self.on_message_callback = None
+        self.on_message_callback: Optional[Callable] = None
         self._main_loop: Optional[asyncio.AbstractEventLoop] = None
 
     def _on_connect(
@@ -118,12 +118,50 @@ class MQTTClientWrapper:
             )
         else:
             raise NotImplementedError(f"{self}.on_message_callback not defined")
+        
+    def _update_values(self, topic: str, new_value: str) -> str:
+        """
+        Update _values attribute by indexing with MQTT source topic
+
+
+        Args:
+            topic (str): MQTT topic on which the new value was received
+            new_value (str): value to update the entity to 
+
+        Raises:
+            TypeError: if _values doesn't contain fields with values of type MQTTFloatValue/ MQTTBoolValue
+            ValueError: if an entity with the mathcing source_topic could not be found
+
+        Returns:
+            str: name of the updated entity
+        """        
+        new_vals = self._values
+
+        entity_name: str = ""
+        for val in new_vals.values():
+            if topic == val.source_topic: # type: ignore
+                mqttval: MQTTBoolValue | MQTTFloatValue | MQTTIntValue = val # type: ignore
+                entity_name = mqttval.entity.name
+                if isinstance(val, MQTTFloatValue):
+                    val.value = float(new_value)
+                elif isinstance(val, MQTTBoolValue):
+                    assert(new_value=="on" or new_value=="off")
+                    val.value = new_value
+                else:
+                    raise TypeError(f"unsuported type {type(val)} defined in MQTTWrapper _values")
+                logger.info(f"Incoming msg: {val.entity.name} {new_value=} received from {topic=}")
+
+        if not entity_name:
+            logger.error(f"MQTTWrapper values has no key {topic}")
+            raise ValueError(f"MQTTWrapper values has no key {topic}")
+        
+        return entity_name
 
     def _on_message(
         self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage
     ):
         """
-        Message receive callback. Puts messages in queue
+        Message receive callback.
 
         :param client: The client instance
         :param userdata: User-defined data
@@ -133,25 +171,11 @@ class MQTTClientWrapper:
             # TODO assume sensor topic: f"{self.mqtt_base_topic}/production_constraint_setpoint/state"
             topic = message.topic
             value = message.payload.decode("utf-8")
-            
-            found_match: bool = False
-            for val in self._values.values():
-                if topic == val.source_topic: # type: ignore
-                    found_match = True
-                    if isinstance(val, MQTTFloatValue):
-                        val.value = float(value)
-                    elif isinstance(val, MQTTBoolValue):
-                        val.value = bool(value)
-                    else:
-                        raise TypeError(f"unsuported type {type(val)} defined in MQTTWrapper _values")
-                    logger.info(f"{value=} received from {topic=}")
 
-            if not found_match:
-                logger.error(f"MQTTWrapper values has no key {topic}")
-                raise ValueError(f"MQTTWrapper values has no key {topic}")
-            # setattr(self._values, variable_name, value)
+            entity_updated_name = self._update_values(topic, value)
 
-            self.handle_message()
+            self.handle_message()   # add outstation callback to main loop
+            self.publish_value(entity_updated_name)   # publish newly received values to debug MQTT entities
 
             logger.debug(f"Message processed on topic {message.topic}")
         except Exception as e:
@@ -165,7 +189,6 @@ class MQTTClientWrapper:
         Publishes CommandValues to their respective MQTT command topics.
 
         :param controls: The commanded values relayed from outstation.
-        :parama to_state_topic (Optional): publish to MQTT state topics, in addition to set topics. For testing/ verification purposes.
         """
 
         # publish setpoints from dnp outstation directly to fake CoCT device entities for debug
@@ -180,6 +203,28 @@ class MQTTClientWrapper:
             )
             logger.info(
                 f"Updated control {name=} on {state_topic=} with {value=}"
+            )
+
+    def publish_value(
+        self,
+        entity_name: str
+    ) -> None:
+        """
+        Publishes a single entity value from self._values to its _values.destination_topic.
+        """
+        for name, mqttvalue in self._values.items():
+            if name != entity_name: 
+                continue
+
+            mqttval: MQTTBoolValue | MQTTFloatValue | MQTTIntValue = mqttvalue # type: ignore
+
+            self.client.publish(
+                topic=mqttval.destination_topic,
+                payload=mqttval.value,
+                retain=True,
+            )
+            logger.info(
+                f"Updated value {name=} on {mqttval.destination_topic} with {mqttval.value=}"
             )
 
     def publish_discovery_messages(self):

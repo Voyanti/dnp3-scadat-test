@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def initMQTTValues(OPTS: Options):
     values = MQTTValues(    
         plant_ac_power_generated = MQTTFloatValue(
-            MQTTSensor("plant_ac_power_generated", HASensorDeviceClass.POWER, "W")),
+                    MQTTSensor("plant_ac_power_generated", HASensorDeviceClass.POWER, "W")),
         grid_reactive_power = MQTTFloatValue(
                     MQTTSensor("grid_reactive_power", HASensorDeviceClass.REACTIVE_POWER, "Var")),
         grid_exported_power = MQTTFloatValue(
@@ -65,6 +65,7 @@ async def main() -> None:
     # load home assistant add-on config
     OPTS: Options = load_config()  # homeassistant config.yaml -> Options
 
+    # setup outstation
     outstation = DNP3Outstation(  # Configure Outstation
         outstation_addr=OPTS.outstation_addr,  # 101 for test, change in production
         master_addr=100,  # The SCADA Master @ CCT
@@ -73,13 +74,18 @@ async def main() -> None:
         event_buffer_size=OPTS.event_buffer_size,
     )
 
+    # setup mqtt host, port, user, password, and initialise MQTTvalues
     mqtt_client = setup_mqtt(OPTS)
 
-    loop = asyncio.get_running_loop()
-    outstation.command_handler._main_loop = loop
-    mqtt_client._main_loop = loop
-    # outstation.command_handler.on_command_callback = mqtt_client.publish_control
-    outstation.command_handler.on_command_callback = mqtt_client.publish_control
+    # pass reference to main loop for queueing callbacks
+    main_loop = asyncio.get_running_loop()
+    outstation.command_handler._main_loop = main_loop
+    mqtt_client._main_loop = main_loop
+
+    # callbacks:
+    # controls received => publish the updated controls to debug/ fake entity topics
+    outstation.command_handler.on_command_callback = mqtt_client.publish_control  
+    # values read from inverters updated => update the analog and binary values on the outstation side
     mqtt_client.on_message_callback = outstation.update_values
 
     logger.info("Entering main run loop. Press Ctrl+C to exit.")
@@ -90,10 +96,12 @@ async def main() -> None:
         logger.info(f"sleep")
         sleep(3)
         logger.info(f"initialise values")
+
+        # initialise outstation values and commands - to ensure validity flag read by dnp server is not RESTART
         await outstation.update_values(mqtt_client._values)
         outstation.update_commands()
 
-        logger.info(f"running")
+        logger.info(f"running") # operate using callbacks
 
         while True:
             await asyncio.sleep(1)

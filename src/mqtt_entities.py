@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, TypedDict
+from typing import Literal, Optional, TypedDict
 
 from .ha_enums import HABinarySensorDeviceClass, HASensorDeviceClass, HASensorType
 import logging
@@ -137,13 +137,29 @@ class MQTTFloatValue(MQTTBaseValue):
 class MQTTBoolValue(MQTTBaseValue):
     def __init__(self, entity: MQTTBinarySensor, value: bool = False) -> None:
         super().__init__(entity)
-        self.value = value
+        self._value = value
+
+    @property
+    def value(self) -> str:
+        if self._value:
+            return 'on'
+        return 'off'
+    
+    @value.setter
+    def value(self, v: Literal['on', 'off']) -> None:
+        if v == 'on':
+            self._value = True
+        else:
+            self._value = False
 
 
 class MQTTIntValue(MQTTBaseValue):
     def __init__(self, entity: MQTTSensor, value: int = 0) -> None:
         super().__init__(entity)
         self.value = value
+
+
+
 
 
 class MQTTValues(TypedDict):
