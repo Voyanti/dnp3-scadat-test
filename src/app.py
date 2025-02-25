@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 def initMQTTValues(OPTS: Options):
     values = MQTTValues(    
         plant_ac_power_generated = MQTTFloatValue(
-                    MQTTSensor("plant_ac_power_generated", HASensorDeviceClass.POWER, "W")),
+                    MQTTSensor("plant_ac_power_generated", HASensorDeviceClass.POWER, "W"), multiplier=OPTS.plant_ac_generated_watts_per_unit),
         grid_reactive_power = MQTTFloatValue(
-                    MQTTSensor("grid_reactive_power", HASensorDeviceClass.REACTIVE_POWER, "Var")),
+                    MQTTSensor("grid_reactive_power", HASensorDeviceClass.REACTIVE_POWER, "Var"), multiplier=OPTS.plant_ac_generated_var_per_unit),
         grid_exported_power = MQTTFloatValue(
-                    MQTTSensor("grid_exported_power", HASensorDeviceClass.POWER, "W")),
+                    MQTTSensor("grid_exported_power", HASensorDeviceClass.POWER, "W"), multiplier=OPTS.plant_export_watts_per_unit),
         production_constraint_setpoint= MQTTIntValue(  # 0 - master output index
                     MQTTSensor("production_constraint_setpoint", HASensorDeviceClass.BATTERY, "%")), 
         gradient_ramp_up = MQTTIntValue(  # 1

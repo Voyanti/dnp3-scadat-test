@@ -15,6 +15,7 @@ class DiscoveryPayloadReq(TypedDict, total=True):
     availability_topic: str
     device: dict
 
+
 class DiscoveryPayload(DiscoveryPayloadReq, total=False):
     device_class: str
     unit_of_measurement: str
@@ -58,7 +59,7 @@ class MQTTSensor(MQTTEntityBase):
             "unit_of_measurement": self.unit,
         }
         payload = base_payload.copy()
-        payload.update(add_dict) # type: ignore
+        payload.update(add_dict)  # type: ignore
 
         return payload
 
@@ -82,7 +83,7 @@ class MQTTBinarySensor(MQTTEntityBase):
             "payload_off": "OFF",
         }
         payload = base_payload.copy()
-        payload.update(add_dict) # type: ignore
+        payload.update(add_dict)  # type: ignore
 
         return payload
 
@@ -97,9 +98,7 @@ class MQTTBaseValue:
         self.entity = entity
 
     def build_payload(self, base_topic) -> None:
-        self.discovery_topic = (
-            f"homeassistant/{self.entity.sensor_type.value}/scada/{self.entity.name}/config"
-        )
+        self.discovery_topic = f"homeassistant/{self.entity.sensor_type.value}/scada/{self.entity.name}/config"
         self.discovery_payload: DiscoveryPayload = self._build_payload(base_topic)
         self.source_topic: str = ""
         self.destination_topic: str = self.discovery_payload["state_topic"]
@@ -135,9 +134,20 @@ class MQTTBaseValue:
 
 
 class MQTTFloatValue(MQTTBaseValue):
-    def __init__(self, entity: MQTTSensor, value: float = 0.0) -> None:
+    def __init__(
+        self, entity: MQTTSensor, multiplier: float = 1, value: float = 0.0
+    ) -> None:
         super().__init__(entity)
-        self.value = value
+        self.multiplier = multiplier
+        self._value = value
+
+    @property
+    def value(self) -> float:
+        return self._value 
+
+    @value.setter
+    def value(self, set_val):
+        self._value = set_val * self.multiplier # e,g. unit * w_per*unit
 
 
 class MQTTBoolValue(MQTTBaseValue):
@@ -150,7 +160,7 @@ class MQTTBoolValue(MQTTBaseValue):
         if self._value:
             return "ON"
         return "OFF"
-    
+
     @value.setter
     def value(self, v: Literal["ON", "OFF"]) -> None:
         if v == "ON":
@@ -160,19 +170,27 @@ class MQTTBoolValue(MQTTBaseValue):
 
 
 class MQTTIntValue(MQTTBaseValue):
-    def __init__(self, entity: MQTTSensor, value: int = 0) -> None:
+    def __init__(
+        self, entity: MQTTSensor, multiplier: float = 1, value: int = 0
+    ) -> None:
         super().__init__(entity)
-        self.value = value
+        self.multiplier = multiplier
+        self._value = value
 
+    @property
+    def value(self) -> int:
+        return int(self._value) 
 
-
+    @value.setter
+    def value(self, set_val):
+        self._value = set_val * self.multiplier # e,g. unit * w_per*unit
 
 
 class MQTTValues(TypedDict):
     """
     Collection of MQTTValues, each with their associated MQTTEntity & value.
 
-    Also has discovery_topic, discovery_payload and source and destination topic attributes 
+    Also has discovery_topic, discovery_payload and source and destination topic attributes
     after member.build(topics(base_topic)) has been called on all the members
     """
 
