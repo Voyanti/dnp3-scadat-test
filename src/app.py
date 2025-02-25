@@ -27,9 +27,9 @@ def initMQTTValues(OPTS: Options):
         gradient_ramp_down = MQTTIntValue(  # 2
                     MQTTSensor("gradient_ramp_down", HASensorDeviceClass.BATTERY, "%")),
         flag_dont_production_constraint = MQTTBoolValue(
-                    MQTTBinarySensor("flag_dont_production_constraint",  HABinarySensorDeviceClass.NONE), True),
+                    MQTTBinarySensor("flag_dont_production_constraint",  HABinarySensorDeviceClass.RUNNING), True),
         flag_dont_gradient_constraint = MQTTBoolValue(
-                    MQTTBinarySensor("flag_dont_gradient_constraint",  HABinarySensorDeviceClass.NONE), True)
+                    MQTTBinarySensor("flag_dont_gradient_constraint",  HABinarySensorDeviceClass.RUNNING), True)
         )
     
     # build discovery payloads
@@ -115,6 +115,7 @@ async def main() -> None:
         logger.info("Shutting down outstation due to exception...")
         raise
     finally:
+        logger.info("Shutting down")
         outstation.shutdown()
         mqtt_client.stop_loop()
 

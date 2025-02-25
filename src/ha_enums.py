@@ -65,7 +65,8 @@ class HASensorDeviceClass(Enum):
 class HABinarySensorDeviceClass(Enum):
     """Home Assistant Binary Sensor Device Classes."""
 
-    NONE = "none"  # Generic on/off sensor with no specific type
+    # none should not be sent as str. device_class should be excluded
+    # NONE = "none"  # Generic on/off sensor with no specific type
     BATTERY = "battery"  # Battery level: on=low, off=normal
     BATTERY_CHARGING = (
         "battery_charging"  # Battery charging status: on=charging, off=not charging
