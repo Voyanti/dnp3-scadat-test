@@ -68,8 +68,12 @@ def setup_mqtt(OPTS: Options) -> MQTTClientWrapper:
 
 async def main() -> None:
     # load home assistant add-on config
-    custom_config_path = sys.argv[1]
-    OPTS: Options = load_config(custom_config_path if custom_config_path else 'data/options.json')  # homeassistant config.yaml -> Options
+    OPTS: Options
+    if sys.argv:
+        custom_config_path = sys.argv[1]
+        OPTS = load_config(custom_config_path if custom_config_path else 'data/options.json')  # homeassistant config.yaml -> Options
+    else:
+        OPTS = load_config('data/options.json')  # homeassistant config.json -> Options
 
     # setup outstation
     outstation = DNP3Outstation(  # Configure Outstation
