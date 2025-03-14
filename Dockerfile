@@ -43,11 +43,11 @@ ENV WORK_DIR=workdir \
   
 RUN mkdir -p ${WORK_DIR}
 WORKDIR /${WORK_DIR}
-# COPY requirements.txt .
-# RUN pip3 install -r requirements.txt
+COPY requirements.txt .
+RUN pip3 install -r requirements.txt
 
 # install python libraries
-# RUN pip3 install dnp3-python
+RUN pip3 install dnp3-python
 # dnp3-python==0.2.3b2
 # Copy code
 COPY src/  ./src/
