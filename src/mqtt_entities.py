@@ -97,6 +97,7 @@ class MQTTBaseValue:
 
     def __init__(self, entity: MQTTBinarySensor | MQTTSensor) -> None:
         self.entity = entity
+        self.additional_topics: list = []
 
     def build_payload(self, base_topic) -> None:
         self.discovery_topic = f"homeassistant/{self.entity.sensor_type.value}/scada/{self.entity.name}/config"

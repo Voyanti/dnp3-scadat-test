@@ -8,7 +8,7 @@ import asyncio
 from random import getrandbits
 from time import time
 
-from .mqtt_entities import DiscoveryPayload, MQTTBinarySensor, MQTTBoolValue, MQTTFloatValue, MQTTIntValue, MQTTSensor, MQTTValues
+from .mqtt_entities import DiscoveryPayload, MQTTBaseValue, MQTTBinarySensor, MQTTBoolValue, MQTTEntityBase, MQTTFloatValue, MQTTIntValue, MQTTSensor, MQTTValues
 
 from .ha_enums import HABinarySensorDeviceClass, HASensorDeviceClass, HASensorType
 from .structs import CommandValues
@@ -187,23 +187,38 @@ class MQTTClientWrapper:
         self, controls: CommandValues
     ) -> None:
         """
-        Publishes CommandValues to their respective MQTT command topics.
+        Publishes CommandValues to their respective MQTT state topics.
 
         :param controls: The commanded values relayed from outstation.
         """
 
         # publish setpoints from dnp outstation directly to fake CoCT device entities for debug
-        for name, value in controls.asdict().items():
+        for name, control in controls.asdict().items():
             # command_topic = f"{self.base_topic}/{control_name}/set"
             state_topic = f"{self.base_topic}/{name}/state"
 
+            value: MQTTBaseValue = getattr(self._values, name)
+            real_set_topics: list[str] = value.additional_topics
+
+            for topic in real_set_topics:
+                # publish to set topic of actual device
+                self.client.publish(
+                    topic=topic,
+                    payload=control,
+                    retain=True,
+                )
+                logger.info(
+                    f"Updated control {name=} on {topic=} with {control=}"
+                )
+
+            # publish to virtual device for debug
             self.client.publish(
                 topic=state_topic,
-                payload=value,
+                payload=control,
                 retain=True,
             )
             logger.info(
-                f"Updated control {name=} on {state_topic=} with {value=}"
+                f"Updated debug control {name=} on {state_topic=} with {control=}"
             )
 
     def publish_value(
@@ -224,8 +239,12 @@ class MQTTClientWrapper:
                 payload=mqttval.value,
                 retain=True,
             )
+
+            display_val = mqttval.value
+            if isinstance(mqttval, (MQTTFloatValue, MQTTIntValue)):
+                display_val = float(display_val)*mqttval.multiplier
             logger.info(
-                f"Updated value {name=} on {mqttval.destination_topic} with {mqttval.value=}"
+                f"Updated value {name=} on {mqttval.destination_topic} with value={display_val}"
             )
 
     def publish_discovery_messages(self):

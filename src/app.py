@@ -1,4 +1,5 @@
 import logging
+import sys
 from time import sleep
 import asyncio
 
@@ -17,9 +18,9 @@ def initMQTTValues(OPTS: Options):
         plant_ac_power_generated = MQTTFloatValue(
                     MQTTSensor("plant_ac_power_generated", HASensorDeviceClass.POWER, "W"), multiplier=OPTS.plant_ac_generated_watts_per_unit),
         grid_reactive_power = MQTTFloatValue(
-                    MQTTSensor("grid_reactive_power", HASensorDeviceClass.REACTIVE_POWER, "Var"), multiplier=OPTS.plant_ac_generated_var_per_unit),
+                    MQTTSensor("grid_reactive_power", HASensorDeviceClass.REACTIVE_POWER, "Var"), multiplier=OPTS.grid_reactive_var_per_unit),
         grid_exported_power = MQTTFloatValue(
-                    MQTTSensor("grid_exported_power", HASensorDeviceClass.POWER, "W"), multiplier=OPTS.plant_export_watts_per_unit),
+                    MQTTSensor("grid_exported_power", HASensorDeviceClass.POWER, "W"), multiplier=OPTS.grid_export_watts_per_unit),
         production_constraint_setpoint= MQTTIntValue(  # 0 - master output index
                     MQTTSensor("production_constraint_setpoint", HASensorDeviceClass.BATTERY, "%")), 
         gradient_ramp_up = MQTTIntValue(  # 1
@@ -46,6 +47,10 @@ def initMQTTValues(OPTS: Options):
     values["grid_reactive_power"].source_topic = OPTS.grid_reactive_topic
     values["grid_exported_power"].source_topic = OPTS.grid_export_topic
 
+    values["production_constraint_setpoint"].additional_topics = [item.topic for item in OPTS.plant_active_power_set_topics]
+    values["gradient_ramp_up"].additional_topics = [OPTS.plant_ramp_up_set_topic]
+    values["gradient_ramp_down"].additional_topics = [OPTS.plant_ramp_down_set_topic]
+
     return values
 
 
@@ -63,7 +68,8 @@ def setup_mqtt(OPTS: Options) -> MQTTClientWrapper:
 
 async def main() -> None:
     # load home assistant add-on config
-    OPTS: Options = load_config()  # homeassistant config.yaml -> Options
+    custom_config_path = sys.argv[1]
+    OPTS: Options = load_config(custom_config_path if custom_config_path else 'data/options.json')  # homeassistant config.yaml -> Options
 
     # setup outstation
     outstation = DNP3Outstation(  # Configure Outstation
