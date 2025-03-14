@@ -1,7 +1,7 @@
 from json import load, JSONDecodeError
 import os
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from cattrs import Converter
 from yaml import CLoader 
 from yaml import load as load_yaml
@@ -32,7 +32,7 @@ class Options:
     grid_export_topic: str = "test/export/state"
     grid_export_watts_per_unit: float = 1000
 
-    plant_active_power_set_topics: list[Topic] = [Topic()]
+    plant_active_power_set_topics: list[Topic] = field(default_factory=lambda: [Topic()])
     plant_ramp_up_set_topic: str = "test/ramp_up/set"
     plant_ramp_down_set_topic: str = "test/ramp_down/set"
     max_total_nominal_active_power_kw: float = 125
