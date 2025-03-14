@@ -73,7 +73,7 @@ async def main() -> None:
         custom_config_path = sys.argv[1]
         OPTS = load_config(custom_config_path if custom_config_path else 'data/options.json')  # homeassistant config.yaml -> Options
     else:
-        OPTS = load_config('data/options.json')  # homeassistant config.json -> Options
+        OPTS = load_config('/data/options.json')  # homeassistant config.json -> Options
 
     # setup outstation
     outstation = DNP3Outstation(  # Configure Outstation
