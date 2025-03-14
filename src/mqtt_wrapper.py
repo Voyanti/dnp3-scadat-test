@@ -197,7 +197,7 @@ class MQTTClientWrapper:
             # command_topic = f"{self.base_topic}/{control_name}/set"
             state_topic = f"{self.base_topic}/{name}/state"
 
-            value: MQTTBaseValue = getattr(self._values, name)
+            value: MQTTBaseValue = self._values[name]
             real_set_topics: list[str] = value.additional_topics
 
             for topic in real_set_topics:
