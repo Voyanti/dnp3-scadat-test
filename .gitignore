@@ -54,3 +54,5 @@ dnp3/
 pydnp3/
 dnp3-python/
 .~lock*
+
+*.xlsx

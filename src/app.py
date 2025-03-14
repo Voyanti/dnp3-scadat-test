@@ -69,7 +69,7 @@ def setup_mqtt(OPTS: Options) -> MQTTClientWrapper:
 async def main() -> None:
     # load home assistant add-on config
     OPTS: Options
-    if sys.argv:
+    if len(sys.argv) > 1:
         custom_config_path = sys.argv[1]
         OPTS = load_config(custom_config_path if custom_config_path else 'data/options.json')  # homeassistant config.yaml -> Options
     else:
