@@ -1,5 +1,5 @@
 name: "CCT SCADA"
-version: "0.0.42"
+version: "0.0.43"
 slug: "cct_dp3_scada"
 description: "Home Assistant add-on CoCT DNP3"
 url: "https://github.com/Voyanti/dnp3-scadat-test"
