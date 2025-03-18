@@ -196,18 +196,21 @@ class MQTTClientWrapper:
             # command_topic = f"{self.base_topic}/{control_name}/set"
             state_topic = f"{self.base_topic}/{name}/state"
 
-            value: MQTTBaseValue = self._values[name]
+            value: MQTTIntValue | MQTTFloatValue | MQTTBoolValue = self._values[name]
             real_set_topics: list[str] = value.additional_topics
 
             for topic in real_set_topics:
                 # publish to set topic of actual device
+                scaled_control = control
+                if isinstance(value, (MQTTIntValue, MQTTFloatValue)):
+                    scaled_control *= value.multiplier
                 self.client.publish(
                     topic=topic,
-                    payload=control*scale,
+                    payload=scaled_control,
                     retain=True,
                 )
                 logger.info(
-                    f"Updated control {name=} on {topic=} with {control*scale}"
+                    f"Updated control {name=} on {topic=} with {scaled_control=}"
                 )
 
             # publish to virtual device for debug
