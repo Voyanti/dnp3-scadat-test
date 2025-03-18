@@ -16,11 +16,6 @@ from pydnp3 import opendnp3, openpal, asiopal, asiodnp3 # type: ignore
 # ------------------------------------------------------
 # Setup basic logging
 # ------------------------------------------------------
-logging.basicConfig(
-    stream=sys.stdout,
-    level=logging.DEBUG,
-    format='%(asctime)s %(levelname)s [%(name)s] %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 # OutstationStackConfig Indexes

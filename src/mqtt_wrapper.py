@@ -108,7 +108,7 @@ class MQTTClientWrapper:
 
         # Use call_soon_threadsafe to schedule the callback on the main event loop
         if self.on_message_callback and self._main_loop:
-            logger.info(f"Readings received from MQTT, addin callback to main loop")
+            logger.debug(f"Message callback")
 
             async def run_callback():
                 await self.on_message_callback(self._values)
@@ -243,7 +243,7 @@ class MQTTClientWrapper:
             display_val = mqttval.value
             if isinstance(mqttval, (MQTTFloatValue, MQTTIntValue)):
                 display_val = float(display_val)*mqttval.multiplier
-            logger.info(
+            logger.debug(
                 f"Updated value {name=} on {mqttval.destination_topic} with value={display_val}"
             )
 

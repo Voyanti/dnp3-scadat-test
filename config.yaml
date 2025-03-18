@@ -1,5 +1,5 @@
 name: "CCT SCADA"
-version: "0.0.48"
+version: "0.0.50"
 slug: "cct_dp3_scada"
 description: "Home Assistant add-on CoCT DNP3"
 url: "https://github.com/Voyanti/dnp3-scadat-test"
@@ -35,10 +35,13 @@ options:
     - topic: modbus/SG1/power_limitation_setting/set
     - topic: modbus/SG2/power_limitation_setting/set
     - topic: modbus/SG3/power_limitation_setting/set
-  plant_ramp_up_set_topic: "test/ramp_up/set"
-  plant_ramp_down_set_topic: "test/ramp_down/set"
+  plant_ramp_up_set_topic: 
+    - topic: "test/ramp_up/set"
+  plant_ramp_down_set_topic: 
+    - topic: "test/ramp_down/set"
   
   max_total_nominal_active_power_kw: 375
+  debug_logging: false
 
 schema:
   server: str
@@ -58,6 +61,9 @@ schema:
   grid_export_watts_per_unit: float
   plant_active_power_set_topics:
     - topic: str
-  plant_ramp_up_set_topic: str
-  plant_ramp_down_set_topic: str
+  plant_ramp_up_set_topic:
+    - topic: str
+  plant_ramp_down_set_topic:
+    - topic: str
   max_total_nominal_active_power_kw: float(90,1010)
+  debug_logging: bool

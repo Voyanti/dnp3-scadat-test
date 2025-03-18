@@ -33,9 +33,11 @@ class Options:
     grid_export_watts_per_unit: float = 1000
 
     plant_active_power_set_topics: list[Topic] = field(default_factory=lambda: [Topic()])
-    plant_ramp_up_set_topic: str = "test/ramp_up/set"
-    plant_ramp_down_set_topic: str = "test/ramp_down/set"
-    max_total_nominal_active_power_kw: float = 125
+    plant_ramp_up_set_topic: list[Topic] = field(default_factory=lambda: [Topic()])
+    plant_ramp_down_set_topic: list[Topic] = field(default_factory=lambda: [Topic()])
+    max_total_nominal_active_power_kw: float = 324
+
+    debug_logging: bool = False
 
 
 def load_config(config_path = '/data/options.json') -> Options:

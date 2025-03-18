@@ -10,8 +10,16 @@ from .outstation import DNP3Outstation
 from .loader import load_config, Options
 from .mqtt_wrapper import MQTTClientWrapper
 
+
 logger = logging.getLogger(__name__)
 
+
+def setupLogging(debug: bool) -> None:
+    logging.basicConfig(
+        stream=sys.stdout,
+        level=logging.DEBUG if debug else logging.INFO,
+        format='%(asctime)s %(levelname)s [%(name)s] %(message)s'
+    )
 
 def initMQTTValues(OPTS: Options):
     values = MQTTValues(    
@@ -48,8 +56,8 @@ def initMQTTValues(OPTS: Options):
     values["grid_exported_power"].source_topic = OPTS.grid_export_topic
 
     values["production_constraint_setpoint"].additional_topics = [item.topic for item in OPTS.plant_active_power_set_topics]
-    values["gradient_ramp_up"].additional_topics = [OPTS.plant_ramp_up_set_topic]
-    values["gradient_ramp_down"].additional_topics = [OPTS.plant_ramp_down_set_topic]
+    values["gradient_ramp_up"].additional_topics = [item.topic for item in OPTS.plant_ramp_up_set_topic]
+    values["gradient_ramp_down"].additional_topics = [item.topic for item in OPTS.plant_ramp_down_set_topic]
 
     return values
 
@@ -75,6 +83,8 @@ async def main() -> None:
     else:
         OPTS = load_config('/data/options.json')  # homeassistant config.json -> Options
 
+    setupLogging(OPTS.debug_logging)
+    
     # setup outstation
     outstation = DNP3Outstation(  # Configure Outstation
         outstation_addr=OPTS.outstation_addr,  # 101 for test, change in production
