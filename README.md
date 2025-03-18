@@ -16,4 +16,4 @@ Make sure to set the outstaion address to the CoCT provided site-specific one. C
 1. Clone
 2. `python3 -m pip install -r requirements.txt`
 
-> Note that opendnp3 (C++ library) is a dependency for dnp3-python, which might not be prebuild for your system/architecture. Use the Dockerfile in that case.
+> Note that opendnp3 (C++ library) is a dependency for dnp3-python, which might not be prebuild for your system/architecture. Refer to the Dockerfile in that case.

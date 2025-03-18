@@ -55,7 +55,7 @@ class MQTTClientWrapper:
 
         self._values = values
         self.on_message_callback: Optional[Callable] = None
-        self._main_loop: Optional[asyncio.AbstractEventLoop] = None
+        self.main_loop: Optional[asyncio.AbstractEventLoop] = None
 
     def _on_connect(
         self,
@@ -107,13 +107,13 @@ class MQTTClientWrapper:
         """
 
         # Use call_soon_threadsafe to schedule the callback on the main event loop
-        if self.on_message_callback and self._main_loop:
+        if self.on_message_callback and self.main_loop:
             logger.debug(f"Message callback")
 
             async def run_callback():
                 await self.on_message_callback(self._values)
 
-            self._main_loop.call_soon_threadsafe(
+            self.main_loop.call_soon_threadsafe(
                 lambda: asyncio.create_task(run_callback())
             )
         else:
@@ -135,13 +135,12 @@ class MQTTClientWrapper:
         Returns:
             str: name of the updated entity
         """        
-        new_vals = self._values
 
+        val: MQTTBoolValue | MQTTFloatValue | MQTTIntValue 
         entity_name: str = ""
-        for val in new_vals.values():
-            if topic == val.source_topic: # type: ignore
-                mqttval: MQTTBoolValue | MQTTFloatValue | MQTTIntValue = val # type: ignore
-                entity_name = mqttval.entity.name
+        for val in self._values.values(): # type: ignore
+            if topic == val.source_topic: 
+                entity_name = val.entity.name
                 if isinstance(val, MQTTFloatValue):
                     val.value = float(new_value)
                 elif isinstance(val, MQTTBoolValue):
@@ -204,11 +203,11 @@ class MQTTClientWrapper:
                 # publish to set topic of actual device
                 self.client.publish(
                     topic=topic,
-                    payload=control,
+                    payload=control*scale,
                     retain=True,
                 )
                 logger.info(
-                    f"Updated control {name=} on {topic=} with {control=}"
+                    f"Updated control {name=} on {topic=} with {control*scale}"
                 )
 
             # publish to virtual device for debug

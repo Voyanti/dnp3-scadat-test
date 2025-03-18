@@ -22,6 +22,11 @@ def setupLogging(debug: bool) -> None:
     )
 
 def initMQTTValues(OPTS: Options):
+    generation_capacity = OPTS.generation_max_active_power_kw 
+    rated_capacity = OPTS.rated_total_nominal_active_power_kw
+    generation_capacity_fraction_of_rated = generation_capacity / rated_capacity
+    logger.info(f"Generation Capacity: {generation_capacity}\nRated Capacity: {rated_capacity}\n Production scaling factor: {generation_capacity_fraction_of_rated}")
+
     values = MQTTValues(    
         plant_ac_power_generated = MQTTFloatValue(
                     MQTTSensor("plant_ac_power_generated", HASensorDeviceClass.POWER, "W"), multiplier=OPTS.plant_ac_generated_watts_per_unit),
@@ -30,7 +35,7 @@ def initMQTTValues(OPTS: Options):
         grid_exported_power = MQTTFloatValue(
                     MQTTSensor("grid_exported_power", HASensorDeviceClass.POWER, "W"), multiplier=OPTS.grid_export_watts_per_unit),
         production_constraint_setpoint= MQTTIntValue(  # 0 - master output index
-                    MQTTSensor("production_constraint_setpoint", HASensorDeviceClass.BATTERY, "%")), 
+                    MQTTSensor("production_constraint_setpoint", HASensorDeviceClass.BATTERY, "%"), multiplier=generation_capacity_fraction_of_rated), 
         gradient_ramp_up = MQTTIntValue(  # 1
                     MQTTSensor("gradient_ramp_up", HASensorDeviceClass.BATTERY, "%")),
         gradient_ramp_down = MQTTIntValue(  # 2
@@ -45,10 +50,10 @@ def initMQTTValues(OPTS: Options):
     for val in values.values():
         val.build_payload(OPTS.mqtt_base_topic)     # type:ignore
 
-    # initialise source MQTT topics
+    # flags are set in homeassistant
     values["flag_dont_gradient_constraint"].source_topic = values["flag_dont_gradient_constraint"].discovery_payload["command_topic"]
     values["flag_dont_production_constraint"].source_topic = values["flag_dont_production_constraint"].discovery_payload["command_topic"]
-    # from_topic (mqtt source topic) is the command topic for switches
+    # source_topic is the command topic for switches
 
     # # analog values read from inverter/logger
     values["plant_ac_power_generated"].source_topic = OPTS.plant_ac_generated_topic
@@ -99,8 +104,8 @@ async def main() -> None:
 
     # pass reference to main loop for queueing callbacks
     main_loop = asyncio.get_running_loop()
-    outstation.command_handler._main_loop = main_loop
-    mqtt_client._main_loop = main_loop
+    outstation.command_handler.main_loop = main_loop
+    mqtt_client.main_loop = main_loop
 
     # callbacks:
     # controls received => publish the updated controls to debug/ fake entity topics

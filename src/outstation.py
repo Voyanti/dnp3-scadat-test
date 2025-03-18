@@ -47,7 +47,7 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         # Define a callback that takes a CommandValues object as argument, for passing commands from outstation 
         self.on_command_callback: Optional[Callable] = None
         self.outstation_command_updater_callback: Optional[Callable] = None
-        self._main_loop: Optional[asyncio.AbstractEventLoop] = None
+        self.main_loop: Optional[asyncio.AbstractEventLoop] = None
 
     def Start(self):
         """
@@ -66,12 +66,12 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         Async Calls self.on_command_callback after verifying its definition
         """
         # Use call_soon_threadsafe to schedule the callback on the main event loop
-        if self.on_command_callback and self._main_loop:
+        if self.on_command_callback and self.main_loop:
             logger.info(f"Commands received from master, adding callback to event loop")
             async def run_callback():
                 await self.on_command_callback(self.command_values)
             
-            self._main_loop.call_soon_threadsafe(
+            self.main_loop.call_soon_threadsafe(
                 lambda: asyncio.create_task(run_callback())
             )
         else:

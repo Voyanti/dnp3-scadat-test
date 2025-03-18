@@ -40,7 +40,8 @@ options:
   plant_ramp_down_set_topic: 
     - topic: "test/ramp_down/set"
   
-  max_total_nominal_active_power_kw: 375
+  generation_max_active_power_kw: 324
+  rated_total_nominal_active_power_kw: 375
   debug_logging: false
 
 schema:
@@ -65,5 +66,6 @@ schema:
     - topic: str
   plant_ramp_down_set_topic:
     - topic: str
-  max_total_nominal_active_power_kw: float(90,1010)
+  generation_max_active_power_kw: float(90,1010)
+  rated_total_nominal_active_power_kw: float(90,1010)
   debug_logging: bool
