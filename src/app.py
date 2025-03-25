@@ -34,16 +34,16 @@ def initMQTTValues(OPTS: Options):
                     MQTTSensor("grid_reactive_power", HASensorDeviceClass.REACTIVE_POWER, "Var"), multiplier=OPTS.grid_reactive_var_per_unit),
         grid_exported_power = MQTTFloatValue(
                     MQTTSensor("grid_exported_power", HASensorDeviceClass.POWER, "W"), multiplier=OPTS.grid_export_watts_per_unit),
-        production_constraint_setpoint= MQTTIntValue(  # 0 - master output index
+        production_constraint_setpoint= MQTTFloatValue(  # 0 - master output index
                     MQTTSensor("production_constraint_setpoint", HASensorDeviceClass.BATTERY, "%"), multiplier=generation_capacity_fraction_of_rated), 
         gradient_ramp_up = MQTTIntValue(  # 1
                     MQTTSensor("gradient_ramp_up", HASensorDeviceClass.BATTERY, "%")),
         gradient_ramp_down = MQTTIntValue(  # 2
                     MQTTSensor("gradient_ramp_down", HASensorDeviceClass.BATTERY, "%")),
         flag_dont_production_constraint = MQTTBoolValue(
-                    MQTTBinarySensor("flag_dont_production_constraint",  HABinarySensorDeviceClass.RUNNING), True),
+                    MQTTBinarySensor("flag_dont_production_constraint",  HABinarySensorDeviceClass.RUNNING), False),  # TODO initial values not reflected correctly in home assistant ui
         flag_dont_gradient_constraint = MQTTBoolValue(
-                    MQTTBinarySensor("flag_dont_gradient_constraint",  HABinarySensorDeviceClass.RUNNING), True)
+                    MQTTBinarySensor("flag_dont_gradient_constraint",  HABinarySensorDeviceClass.RUNNING), False)
         )
     
     # build discovery payloads
@@ -123,8 +123,10 @@ async def main() -> None:
         logger.info(f"initialise values")
 
         # initialise outstation values and commands - to ensure validity flag read by dnp server is not RESTART
+        logger.info(f"Initialise outstation values")
         await outstation.update_values(mqtt_client._values)
         outstation.update_commands()
+        logger.info(f"Publish initial commands to mqtt")
         outstation.command_handler.handle_commands()
 
         logger.info(f"running") # operate using callbacks

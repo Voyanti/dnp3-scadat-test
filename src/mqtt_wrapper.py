@@ -6,7 +6,7 @@ import json
 import asyncio
 
 from random import getrandbits
-from time import time
+from time import sleep, time
 
 from .mqtt_entities import DiscoveryPayload, MQTTBaseValue, MQTTBinarySensor, MQTTBoolValue, MQTTEntityBase, MQTTFloatValue, MQTTIntValue, MQTTSensor, MQTTValues
 
@@ -190,28 +190,14 @@ class MQTTClientWrapper:
 
         :param controls: The commanded values relayed from outstation.
         """
-
         # publish setpoints from dnp outstation directly to fake CoCT device entities for debug
         for name, control in controls.asdict().items():
+            associated_value: MQTTIntValue = self._values[name]
+            if isinstance(associated_value, (MQTTIntValue, MQTTFloatValue)):
+                control *= associated_value.multiplier
+
             # command_topic = f"{self.base_topic}/{control_name}/set"
             state_topic = f"{self.base_topic}/{name}/state"
-
-            value: MQTTIntValue | MQTTFloatValue | MQTTBoolValue = self._values[name]
-            real_set_topics: list[str] = value.additional_topics
-
-            for topic in real_set_topics:
-                # publish to set topic of actual device
-                scaled_control = control
-                if isinstance(value, (MQTTIntValue, MQTTFloatValue)):
-                    scaled_control *= value.multiplier
-                self.client.publish(
-                    topic=topic,
-                    payload=scaled_control,
-                    retain=True,
-                )
-                logger.info(
-                    f"Updated control {name=} on {topic=} with {scaled_control=}"
-                )
 
             # publish to virtual device for debug
             self.client.publish(
@@ -222,6 +208,69 @@ class MQTTClientWrapper:
             logger.info(
                 f"Updated debug control {name=} on {state_topic=} with {control=}"
             )
+        
+        # check if production constraint needs to be set
+        production_control = controls.production_constraint_setpoint
+        production_value: MQTTFloatValue = self._values["production_constraint_setpoint"]
+        cur_setpoint = production_value.value
+
+        if cur_setpoint != production_control:
+            # block and update production constraint actual setpoint over time
+            self.publish_control_continuously(production_value, production_control, controls)
+
+    def publish_control_continuously(self, production_value: MQTTFloatValue, control: float, controls: CommandValues) -> None:
+        """Publish production constraint in steps as workaround for sungrow ramp up function inaccuracy
+
+        Args:
+            production_value (MQTTFloatValue): _description_
+            control (float): _description_
+            controls (CommandValues): _description_
+        """
+        cur_setpoint = production_value.value
+        real_set_topics: list[str] = production_value.additional_topics
+
+        # scale control according to mqttval multiplier (control is separate from MQTTValues object)
+        control *= production_value.multiplier
+
+        change_interval = 5 # update setpoint every 5s
+        if cur_setpoint > control: # ramp down
+            delta = - controls.gradient_ramp_down / 60 * change_interval
+        elif cur_setpoint < control: # ramp up
+            delta = controls.gradient_ramp_up / 60 * change_interval # %/min * 1min/60s * 5s
+
+        n_increments = int((control - cur_setpoint) / delta)
+
+        # perform updates periodically
+        for step in range(n_increments):
+            sleep(change_interval-0.005)
+            cur_setpoint += delta
+
+            # write setpoint
+            for topic in real_set_topics:
+                # publish to set topic of actual device
+                self.client.publish(
+                    topic=topic,
+                    payload=cur_setpoint,
+                    retain=True,
+                )
+                logger.info(
+                    f"Updated Production Constraint on {topic=} with {cur_setpoint=}"
+                )   
+
+
+        # since n_increments is rounded down, check if a final increment is required
+        if cur_setpoint != control:
+            # publish to set topic of actual device
+            self.client.publish(
+                topic=topic,
+                payload=control,
+                retain=True,
+            )
+            logger.info(
+                f"Updated Production Constraint on {topic=} with {control=}"
+            )  
+        production_value.value = control
+        
 
     def publish_value(
         self,

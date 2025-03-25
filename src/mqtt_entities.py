@@ -137,7 +137,7 @@ class MQTTBaseValue:
 
 class MQTTFloatValue(MQTTBaseValue):
     def __init__(
-        self, entity: MQTTSensor, multiplier: float = 1, value: float = 0.0
+        self, entity: MQTTSensor, multiplier: float = 1, value: float = 100.0
     ) -> None:
         super().__init__(entity)
         self.multiplier = multiplier
@@ -206,7 +206,7 @@ class MQTTValues(TypedDict):
     grid_exported_power: MQTTFloatValue
 
     # %
-    production_constraint_setpoint: MQTTIntValue  # 0 - master output index
+    production_constraint_setpoint: MQTTFloatValue  # 0 - master output index
     gradient_ramp_up: MQTTIntValue  # 1
     gradient_ramp_down: MQTTIntValue  # 2
 

@@ -8,16 +8,20 @@ class CommandValues:
     """
 
     def __init__(
-        self, production_constraint_setpoint, gradient_ramp_up, gradient_ramp_down
+        self,
+        production_constraint_setpoint: float,
+        gradient_ramp_up: int,
+        gradient_ramp_down: int,
     ) -> None:
-        self.production_constraint_setpoint: int = (
+        self.production_constraint_setpoint = (
             production_constraint_setpoint  # 0 - master output index
         )
-        self.gradient_ramp_up: int = gradient_ramp_up  # 1
-        self.gradient_ramp_down: int = gradient_ramp_down  # 2
+
+        self.gradient_ramp_up = gradient_ramp_up  # 1
+        self.gradient_ramp_down = gradient_ramp_down  # 2
 
     @property
-    def production_constraint_setpoint(self) -> int:
+    def production_constraint_setpoint(self) -> float:
         return self._production_constraint_setpoint
 
     @production_constraint_setpoint.setter
@@ -53,7 +57,11 @@ class CommandValues:
         self._gradient_ramp_down = value
 
     def __iter__(self):
-        members = (self.production_constraint_setpoint, self.gradient_ramp_up, self.gradient_ramp_down)
+        members = (
+            self.production_constraint_setpoint,
+            self.gradient_ramp_up,
+            self.gradient_ramp_down,
+        )
         for member in members:
             yield member
 
@@ -61,9 +69,10 @@ class CommandValues:
         d = {
             "production_constraint_setpoint": self.production_constraint_setpoint,
             "gradient_ramp_up": self.gradient_ramp_up,
-            "gradient_ramp_down": self.gradient_ramp_down
+            "gradient_ramp_down": self.gradient_ramp_down,
         }
         return d
+
 
 if __name__ == "__main__":
 

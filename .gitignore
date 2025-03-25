@@ -56,3 +56,4 @@ dnp3-python/
 .~lock*
 
 *.xlsx
+src/developing.ipynb

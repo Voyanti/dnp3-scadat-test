@@ -67,7 +67,7 @@ class MyCommandHandler(opendnp3.ICommandHandler):
         """
         # Use call_soon_threadsafe to schedule the callback on the main event loop
         if self.on_command_callback and self.main_loop:
-            logger.info(f"Commands received from master, adding callback to event loop")
+            logger.info(f"Command receive callback")
             async def run_callback():
                 await self.on_command_callback(self.command_values)
             
@@ -330,7 +330,7 @@ class DNP3Outstation:
     def update_commands(self) -> None:
         """
         Update the outstation's data with plant measurements.
-        Used as a callback in plant-measurement-receiving-class (MQTTWrapper)
+        Used by the command handler to update outstation data points.
         """
         builder = asiodnp3.UpdateBuilder()
 

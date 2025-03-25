@@ -35,7 +35,7 @@ class Options:
     plant_active_power_set_topics: list[Topic] = field(default_factory=lambda: [Topic()])
     plant_ramp_up_set_topic: list[Topic] = field(default_factory=lambda: [Topic()])
     plant_ramp_down_set_topic: list[Topic] = field(default_factory=lambda: [Topic()])
-    generation_max_active_power_kw: float = 324          # TODO assuming that each inverter has the same connected generation capacity
+    generation_max_active_power_kw: float = 375          # TODO assuming that each inverter has the same connected generation capacity
     rated_total_nominal_active_power_kw: float = 375
 
     debug_logging: bool = False
