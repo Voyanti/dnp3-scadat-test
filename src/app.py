@@ -31,7 +31,7 @@ def initMQTTValues(OPTS: Options):
         plant_ac_power_generated = MQTTFloatValue(
                     MQTTSensor("plant_ac_power_generated", HASensorDeviceClass.POWER, "W"), multiplier=OPTS.plant_ac_generated_watts_per_unit),
         grid_reactive_power = MQTTFloatValue(
-                    MQTTSensor("grid_reactive_power", HASensorDeviceClass.REACTIVE_POWER, "Var"), multiplier=OPTS.grid_reactive_var_per_unit),
+                    MQTTSensor("grid_reactive_power", HASensorDeviceClass.REACTIVE_POWER, "var"), multiplier=OPTS.grid_reactive_var_per_unit),
         grid_exported_power = MQTTFloatValue(
                     MQTTSensor("grid_exported_power", HASensorDeviceClass.POWER, "W"), multiplier=OPTS.grid_export_watts_per_unit),
         production_constraint_setpoint= MQTTFloatValue(  # 0 - master output index
