@@ -1,7 +1,7 @@
 argcomplete==3.5.3
 attrs==25.1.0
 cattrs==24.1.2
-cmake==3.31.4
+cmake==3.31.6
 dnp3-python==0.3.0b2
 exceptiongroup==1.2.2
 hercules==0.0

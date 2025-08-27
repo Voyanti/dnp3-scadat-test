@@ -28,7 +28,7 @@ ENV CFLAGS="-I/usr/include"
 ENV CXXFLAGS="-I/usr/include"
 
 # Install build requirements and dependencies
-RUN python3 -m pip install --no-cache-dir cmake setuptools wheel \
+RUN python3 -m pip install --no-cache-dir cmake<=3.31.6 setuptools wheel \
         paho-mqtt cattrs PyYAML
 
 # Build and install the package
