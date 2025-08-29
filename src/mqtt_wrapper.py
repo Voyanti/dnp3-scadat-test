@@ -238,6 +238,8 @@ class MQTTClientWrapper:
         else: # equal. set the value again in case the update did not go through
             delta = 0
 
+        delta = round(delta, 4)
+
         n_increments = 1
         if delta != 0:
             n_increments = int((control - cur_setpoint) / delta)
