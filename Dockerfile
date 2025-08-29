@@ -46,6 +46,8 @@ COPY --from=builder /build/dist/*.whl /tmp/
 
 # Install the wheel
 RUN pip install /tmp/*.whl && rm /tmp/*.whl
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Create a work directory and non-root user (optional but good practice)
 WORKDIR /app
