@@ -1,5 +1,5 @@
 name: "CCT SCADA"
-version: "0.4.62"
+version: "0.4.64"
 image: ghcr.io/voyanti/dnp3-scadat-test
 slug: "dnp3-scadat-test"
 description: "Home Assistant add-on CoCT DNP3"
