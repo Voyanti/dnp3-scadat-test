@@ -68,11 +68,11 @@ def load_config(config_path = '/data/options.json') -> Options:
         
     except JSONDecodeError as e:
         raise ValueError(f"Failed to parse config file: {str(e)}")
-    except IOError as e:
-        logging.error(str(e))
-        raise
     except FileNotFoundError as e:
         logging.error(f"Unsopported config file extention at {config_path}")
+        raise
+    except IOError as e:
+        logging.error(str(e))
         raise
     except Exception as e:
         raise Exception(f"Error reading config: {str(e)}")
