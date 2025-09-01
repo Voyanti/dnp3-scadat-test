@@ -8,7 +8,17 @@ import asyncio
 from random import getrandbits
 from time import sleep, time
 
-from .mqtt_entities import DiscoveryPayload, MQTTBaseValue, MQTTBinarySensor, MQTTBoolValue, MQTTEntityBase, MQTTFloatValue, MQTTIntValue, MQTTSensor, MQTTValues
+from .mqtt_entities import (
+    DiscoveryPayload,
+    MQTTBaseValue,
+    MQTTBinarySensor,
+    MQTTBoolValue,
+    MQTTEntityBase,
+    MQTTFloatValue,
+    MQTTIntValue,
+    MQTTSensor,
+    MQTTValues,
+)
 
 from .ha_enums import HABinarySensorDeviceClass, HASensorDeviceClass, HASensorType
 from .structs import CommandValues
@@ -18,7 +28,11 @@ logger = logging.getLogger(__name__)
 
 class MQTTClientWrapper:
     def __init__(
-        self, mqtt_user: str, mqtt_password: str, mqtt_base_topic: str, values: MQTTValues
+        self,
+        mqtt_user: str,
+        mqtt_password: str,
+        mqtt_base_topic: str,
+        values: MQTTValues,
     ) -> None:
         """
         Initialize the MQTT Client Wrapper
@@ -118,7 +132,7 @@ class MQTTClientWrapper:
             )
         else:
             raise NotImplementedError(f"{self}.on_message_callback not defined")
-        
+
     def _update_values(self, topic: str, new_value: str) -> str:
         """
         Update _values attribute by indexing with MQTT source topic
@@ -126,7 +140,7 @@ class MQTTClientWrapper:
 
         Args:
             topic (str): MQTT topic on which the new value was received
-            new_value (str): value to update the entity to 
+            new_value (str): value to update the entity to
 
         Raises:
             TypeError: if _values doesn't contain fields with values of type MQTTFloatValue/ MQTTBoolValue
@@ -134,26 +148,30 @@ class MQTTClientWrapper:
 
         Returns:
             str: name of the updated entity
-        """        
+        """
 
-        val: MQTTBoolValue | MQTTFloatValue | MQTTIntValue 
+        val: MQTTBoolValue | MQTTFloatValue | MQTTIntValue
         entity_name: str = ""
-        for val in self._values.values(): # type: ignore
-            if topic == val.source_topic: 
+        for val in self._values.values():  # type: ignore
+            if topic == val.source_topic:
                 entity_name = val.entity.name
                 if isinstance(val, MQTTFloatValue):
                     val.value = float(new_value)
                 elif isinstance(val, MQTTBoolValue):
-                    assert(new_value=="ON" or new_value=="OFF")
+                    assert new_value == "ON" or new_value == "OFF"
                     val.value = new_value
                 else:
-                    raise TypeError(f"unsuported type {type(val)} defined in MQTTWrapper _values")
-                logger.info(f"Incoming msg: {val.entity.name} {new_value=} received from {topic=}")
+                    raise TypeError(
+                        f"unsuported type {type(val)} defined in MQTTWrapper _values"
+                    )
+                logger.info(
+                    f"Incoming msg: {val.entity.name} {new_value=} received from {topic=}"
+                )
 
         if not entity_name:
             logger.error(f"MQTTWrapper values has no key {topic}")
             raise ValueError(f"MQTTWrapper values has no key {topic}")
-        
+
         return entity_name
 
     def _on_message(
@@ -171,20 +189,26 @@ class MQTTClientWrapper:
             topic = message.topic
             value = message.payload.decode("utf-8")
 
+            if value == "unavailable":
+                logger.warning(f"Received unavailable status on topic {topic}")
+                logger.warning(f"Outstation and debug state left unchanged")
+
+                # don't set the debug state to unavailable: The outstation will still be reporting the last value, so this is what the debug state shows
+                return
+
             entity_updated_name = self._update_values(topic, value)
 
-            self.handle_message()   # add outstation callback to main loop
-            self.publish_value(entity_updated_name)   # publish newly received values to debug MQTT entities
+            self.handle_message()  # add outstation callback to main loop
+            self.publish_value(
+                entity_updated_name
+            )  # publish newly received values to debug MQTT entities
 
             logger.debug(f"Message processed on topic {message.topic}")
         except Exception as e:
             logger.error(f"Error processing message: {e}")
             raise e
 
-
-    async def publish_control(
-        self, controls: CommandValues
-    ) -> None:
+    async def publish_control(self, controls: CommandValues) -> None:
         """
         Publishes CommandValues to their respective MQTT state topics.
 
@@ -208,15 +232,21 @@ class MQTTClientWrapper:
             logger.info(
                 f"Updated debug control {name=} on {state_topic=} with {control=}"
             )
-        
+
         # check if production constraint needs to be set
         production_control = controls.production_constraint_setpoint
-        production_value: MQTTFloatValue = self._values["production_constraint_setpoint"]
+        production_value: MQTTFloatValue = self._values[
+            "production_constraint_setpoint"
+        ]
 
         # block and update production constraint actual setpoint over time
-        self.publish_control_continuously(production_value, production_control, controls)
+        self.publish_control_continuously(
+            production_value, production_control, controls
+        )
 
-    def publish_control_continuously(self, production_value: MQTTFloatValue, control: float, controls: CommandValues) -> None:
+    def publish_control_continuously(
+        self, production_value: MQTTFloatValue, control: float, controls: CommandValues
+    ) -> None:
         """Publish production constraint in steps as workaround for sungrow ramp up function inaccuracy
 
         Args:
@@ -230,12 +260,14 @@ class MQTTClientWrapper:
         # scale control according to mqttval multiplier (control is separate from MQTTValues object)
         control *= production_value.multiplier
 
-        change_interval = 5 # update setpoint every 5s
-        if cur_setpoint > control: # ramp down
-            delta = - controls.gradient_ramp_down / 60 * change_interval
-        elif cur_setpoint < control: # ramp up
-            delta = controls.gradient_ramp_up / 60 * change_interval # %/min * 1min/60s * 5s
-        else: # equal. set the value again in case the update did not go through
+        change_interval = 5  # update setpoint every 5s
+        if cur_setpoint > control:  # ramp down
+            delta = -controls.gradient_ramp_down / 60 * change_interval
+        elif cur_setpoint < control:  # ramp up
+            delta = (
+                controls.gradient_ramp_up / 60 * change_interval
+            )  # %/min * 1min/60s * 5s
+        else:  # equal. set the value again in case the update did not go through
             delta = 0
 
         n_increments = 1
@@ -244,13 +276,13 @@ class MQTTClientWrapper:
 
         # perform updates periodically
         for step in range(n_increments):
-            sleep(change_interval-0.005)
+            sleep(change_interval - 0.005)
             cur_setpoint += delta
 
             # write setpoint
             for topic in real_set_topics:
                 # publish to set topic of actual device
-                payload = f"{cur_setpoint:.2f}" # pre-shorten the floats
+                payload = f"{cur_setpoint:.2f}"  # pre-shorten the floats
                 self.client.publish(
                     topic=topic,
                     payload=payload,
@@ -258,8 +290,7 @@ class MQTTClientWrapper:
                 )
                 logger.info(
                     f"Updated Production Constraint on {topic=} with {payload=}"
-                )   
-
+                )
 
         # since n_increments is rounded down, check if a final increment is required
         if cur_setpoint != control:
@@ -272,22 +303,18 @@ class MQTTClientWrapper:
                 )
                 logger.info(
                     f"Updated Production Constraint on {topic=} with {control=}"
-                )  
+                )
         production_value.value = control
-        
 
-    def publish_value(
-        self,
-        entity_name: str
-    ) -> None:
+    def publish_value(self, entity_name: str) -> None:
         """
         Publishes a single entity value from self._values to its _values.destination_topic.
         """
         for name, mqttvalue in self._values.items():
-            if name != entity_name: 
+            if name != entity_name:
                 continue
 
-            mqttval: MQTTBoolValue | MQTTFloatValue | MQTTIntValue = mqttvalue # type: ignore
+            mqttval: MQTTBoolValue | MQTTFloatValue | MQTTIntValue = mqttvalue  # type: ignore
 
             self.client.publish(
                 topic=mqttval.destination_topic,
@@ -297,7 +324,7 @@ class MQTTClientWrapper:
 
             display_val = mqttval.value
             if isinstance(mqttval, (MQTTFloatValue, MQTTIntValue)):
-                display_val = float(display_val)*mqttval.multiplier
+                display_val = float(display_val) * mqttval.multiplier
             logger.debug(
                 f"Updated value {name=} on {mqttval.destination_topic} with value={display_val}"
             )
@@ -327,7 +354,9 @@ class MQTTClientWrapper:
                 continue
 
             self.client.subscribe(topic=value.source_topic)
-            logger.info(f"Subscribed to {value.source_topic} at discovery {value.discovery_topic}")
+            logger.info(
+                f"Subscribed to {value.source_topic} at discovery {value.discovery_topic}"
+            )
         # additional subscriptions:
 
     def connect(
